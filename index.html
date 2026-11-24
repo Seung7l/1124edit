@@ -1,0 +1,3037 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>기상청 기상특보 관제 대시보드</title>
+  <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" />
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+  <style>
+    :root {
+      --bg-canvas: #e9ecf1;
+      --surface-top: #ffffff;
+      --surface-bottom: #f5f7fa;
+      --surface-inset: #eceff4;
+
+      --navy-950: #0b1324;
+      --navy-900: #131c31;
+      --navy-800: #1e293b;
+      --navy-700: #334155;
+
+      --blue-700: #1d4ed8;
+      --blue-600: #2563eb;
+      --blue-500: #3b82f6;
+      --blue-100: #dbeafe;
+      --blue-50: #eff6ff;
+
+      --slate-600: #475569;
+      --slate-500: #64748b;
+      --slate-400: #94a3b8;
+      --slate-300: #cbd5e1;
+      --slate-200: #e2e8f0;
+      --slate-100: #f1f5f9;
+      --white: #ffffff;
+
+      /* 특보 강도 색상 (인포그래픽 오렌지/앰버 & 레드) */
+      --warn-amber: #ea580c;
+      --warn-amber-bright: #f97316;
+      --warn-amber-light: #fb923c;
+      --warn-amber-bg: #fff7ed;
+      --warn-amber-border: #fed7aa;
+
+      --warn-red: #dc2626;
+      --warn-red-bright: #ef4444;
+      --warn-red-bg: #fef2f2;
+      --warn-red-border: #fecaca;
+
+      --ok-green: #059669;
+      --ok-green-bg: #ecfdf5;
+      --ok-green-border: #a7f3d0;
+
+      --radius-card: 28px;
+      --radius-inner: 20px;
+      --radius-input: 14px;
+      --radius-pill: 999px;
+
+      /* 입체감 섀도우 시스템 */
+      --shadow-card:
+        0 18px 36px -12px rgba(15, 23, 42, 0.11),
+        0 6px 14px -4px rgba(15, 23, 42, 0.06),
+        inset 0 2px 0 rgba(255, 255, 255, 0.95);
+      --shadow-card-sm:
+        0 10px 22px -8px rgba(15, 23, 42, 0.09),
+        0 3px 8px -2px rgba(15, 23, 42, 0.05),
+        inset 0 1px 0 rgba(255, 255, 255, 0.95);
+      --shadow-inset:
+        inset 0 2px 7px rgba(15, 23, 42, 0.07),
+        inset 0 -1px 0 rgba(255, 255, 255, 0.85);
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif;
+      background-color: var(--bg-canvas);
+      background-image: radial-gradient(rgba(148, 163, 184, 0.34) 1.25px, transparent 1.25px);
+      background-size: 16px 16px;
+      color: var(--navy-900);
+      line-height: 1.5;
+      font-size: 14px;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* 상단 플로팅 헤더 바 */
+    .topbar-wrap {
+      position: sticky;
+      top: 14px;
+      z-index: 40;
+      max-width: 1360px;
+      margin: 16px auto 0;
+      padding: 0 24px;
+    }
+
+    .topbar {
+      background: linear-gradient(180deg, rgba(255, 255, 255, 0.96) 0%, rgba(246, 248, 251, 0.94) 100%);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border: 1px solid rgba(255, 255, 255, 0.95);
+      border-radius: var(--radius-pill);
+      box-shadow: var(--shadow-card-sm);
+      padding: 10px 18px 10px 22px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      flex-wrap: wrap;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .brand-mark {
+      width: 38px;
+      height: 38px;
+      border-radius: 50%;
+      background: linear-gradient(145deg, #3b82f6 0%, #1e3a8a 100%);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      box-shadow: 0 6px 14px rgba(37, 99, 235, 0.28), inset 0 1px 1px rgba(255, 255, 255, 0.45);
+    }
+
+    .brand-title {
+      font-size: 15.5px;
+      font-weight: 800;
+      letter-spacing: -0.02em;
+      color: var(--navy-900);
+    }
+
+    .brand-pill-bar {
+      width: 28px;
+      height: 6px;
+      border-radius: var(--radius-pill);
+      background: linear-gradient(90deg, #f97316 0%, #ea580c 100%);
+      box-shadow: 0 2px 6px rgba(249, 115, 22, 0.35);
+      display: inline-block;
+      vertical-align: middle;
+      margin-left: 6px;
+    }
+
+    .brand-sub {
+      font-size: 11.5px;
+      color: var(--slate-500);
+      font-weight: 500;
+    }
+
+    .topbar-controls {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .status-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      padding: 7px 13px;
+      border-radius: var(--radius-pill);
+      font-size: 12px;
+      font-weight: 700;
+      background-color: var(--surface-inset);
+      box-shadow: var(--shadow-inset);
+      color: var(--navy-800);
+    }
+
+    .status-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background-color: var(--slate-400);
+    }
+
+    .status-pill.is-live .status-dot {
+      background-color: #16a34a;
+      box-shadow: 0 0 0 3px rgba(22, 163, 74, 0.18);
+    }
+    .status-pill.is-loading .status-dot {
+      background-color: var(--blue-600);
+      box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.18);
+    }
+    .status-pill.is-error .status-dot {
+      background-color: var(--warn-red);
+      box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.18);
+    }
+    .status-pill.is-clear .status-dot {
+      background-color: #0284c7;
+      box-shadow: 0 0 0 3px rgba(2, 132, 199, 0.18);
+    }
+
+    .timestamp-text {
+      font-size: 12px;
+      color: var(--slate-600);
+      font-weight: 600;
+      font-variant-numeric: tabular-nums;
+      padding: 0 6px;
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      padding: 8px 16px;
+      border-radius: var(--radius-pill);
+      font-size: 12.5px;
+      font-weight: 700;
+      font-family: inherit;
+      cursor: pointer;
+      border: 1px solid transparent;
+      transition: transform 0.14s ease, box-shadow 0.14s ease, background-color 0.14s ease;
+      white-space: nowrap;
+    }
+
+    .btn:active:not(:disabled) {
+      transform: translateY(1px);
+    }
+
+    .btn:disabled {
+      opacity: 0.55;
+      cursor: not-allowed;
+    }
+
+    .btn-primary {
+      background: linear-gradient(180deg, #3b82f6 0%, #2563eb 100%);
+      color: var(--white);
+      box-shadow: 0 6px 14px rgba(37, 99, 235, 0.28), inset 0 1px 0 rgba(255, 255, 255, 0.35);
+    }
+
+    .btn-primary:hover:not(:disabled) {
+      background: linear-gradient(180deg, #2563eb 0%, #1d4ed8 100%);
+      box-shadow: 0 8px 18px rgba(37, 99, 235, 0.34);
+    }
+
+    .btn-accent {
+      background: linear-gradient(180deg, #fb923c 0%, #f97316 100%);
+      color: var(--white);
+      box-shadow: 0 6px 14px rgba(249, 115, 22, 0.28), inset 0 1px 0 rgba(255, 255, 255, 0.35);
+    }
+
+    .btn-accent:hover:not(:disabled) {
+      background: linear-gradient(180deg, #f97316 0%, #ea580c 100%);
+    }
+
+    .btn-light {
+      background: linear-gradient(180deg, #ffffff 0%, #f3f5f8 100%);
+      color: var(--navy-800);
+      border-color: rgba(203, 213, 225, 0.7);
+      box-shadow: 0 4px 10px rgba(15, 23, 42, 0.06), inset 0 1px 0 #ffffff;
+    }
+
+    .btn-light:hover:not(:disabled) {
+      background: #ffffff;
+      border-color: var(--slate-300);
+    }
+
+    .btn-sm {
+      padding: 6px 12px;
+      font-size: 12px;
+    }
+
+    /* 메인 컨테이너 */
+    .container {
+      max-width: 1360px;
+      margin: 0 auto;
+      padding: 26px 24px 56px;
+      display: flex;
+      flex-direction: column;
+      gap: 24px;
+    }
+
+    /* 인포그래픽 히어로 타이틀 */
+    .hero-intro {
+      text-align: center;
+      padding: 6px 12px 4px;
+    }
+
+    .hero-heading {
+      font-size: 28px;
+      font-weight: 800;
+      letter-spacing: -0.03em;
+      color: var(--navy-900);
+      line-height: 1.25;
+    }
+
+    .hero-heading .accent {
+      color: var(--warn-amber-bright);
+    }
+
+    .hero-heading .accent-blue {
+      color: var(--blue-600);
+    }
+
+    .hero-desc {
+      margin-top: 6px;
+      font-size: 13px;
+      color: var(--slate-500);
+      font-weight: 500;
+    }
+
+    /* 공통 입체 라운드 카드 */
+    .panel {
+      background: linear-gradient(180deg, var(--surface-top) 0%, var(--surface-bottom) 100%);
+      border: 1px solid rgba(255, 255, 255, 0.92);
+      border-radius: var(--radius-card);
+      box-shadow: var(--shadow-card);
+      overflow: hidden;
+    }
+
+    .config-panel.is-collapsed {
+      display: none;
+    }
+
+    .panel-header {
+      padding: 18px 26px 14px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      flex-wrap: wrap;
+      border-bottom: 1px solid rgba(226, 232, 240, 0.65);
+    }
+
+    .panel-title-wrap {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .title-pill-bar {
+      width: 6px;
+      height: 22px;
+      border-radius: var(--radius-pill);
+      background: linear-gradient(180deg, #3b82f6 0%, #1d4ed8 100%);
+      box-shadow: 0 3px 8px rgba(37, 99, 235, 0.3);
+      flex-shrink: 0;
+    }
+
+    .title-pill-bar.is-orange {
+      background: linear-gradient(180deg, #fb923c 0%, #ea580c 100%);
+      box-shadow: 0 3px 8px rgba(249, 115, 22, 0.3);
+    }
+
+    .panel-title {
+      font-size: 16px;
+      font-weight: 800;
+      color: var(--navy-900);
+      letter-spacing: -0.02em;
+    }
+
+    .panel-subtitle {
+      font-size: 12px;
+      color: var(--slate-500);
+      font-weight: 500;
+      margin-left: 8px;
+    }
+
+    .panel-body {
+      padding: 20px 26px 24px;
+    }
+
+    /* 음각 인셋 영역 */
+    .inset-surface {
+      background-color: var(--surface-inset);
+      border-radius: var(--radius-inner);
+      box-shadow: var(--shadow-inset);
+      border: 1px solid rgba(203, 213, 225, 0.45);
+    }
+
+    /* API 설정 폼 */
+    .config-grid {
+      display: grid;
+      grid-template-columns: 2fr 1fr 1.6fr auto;
+      gap: 14px;
+      align-items: end;
+    }
+
+    .field {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .field-label {
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--navy-800);
+      padding-left: 4px;
+    }
+
+    .input-group {
+      display: flex;
+      position: relative;
+    }
+
+    .input,
+    .select {
+      width: 100%;
+      height: 40px;
+      padding: 0 14px;
+      border: 1px solid rgba(203, 213, 225, 0.85);
+      border-radius: var(--radius-input);
+      font-size: 13px;
+      font-family: inherit;
+      font-weight: 500;
+      color: var(--navy-900);
+      background-color: var(--white);
+      box-shadow: inset 0 2px 4px rgba(15, 23, 42, 0.04);
+      outline: none;
+      transition: border-color 0.15s ease, box-shadow 0.15s ease;
+    }
+
+    .input:focus,
+    .select:focus {
+      border-color: var(--blue-500);
+      box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.16), inset 0 1px 2px rgba(15, 23, 42, 0.03);
+    }
+
+    .input-with-btn {
+      padding-right: 62px;
+    }
+
+    .input-toggle-btn {
+      position: absolute;
+      right: 6px;
+      top: 6px;
+      height: 28px;
+      padding: 0 10px;
+      border: 1px solid var(--slate-200);
+      background: var(--surface-inset);
+      color: var(--slate-600);
+      border-radius: var(--radius-pill);
+      font-size: 11px;
+      font-weight: 700;
+      cursor: pointer;
+    }
+
+    .config-meta {
+      margin-top: 14px;
+      padding-top: 14px;
+      border-top: 1px solid rgba(226, 232, 240, 0.7);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      flex-wrap: wrap;
+      font-size: 12px;
+      color: var(--slate-600);
+    }
+
+    .checkbox-label {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      cursor: pointer;
+      user-select: none;
+      color: var(--navy-800);
+      font-weight: 600;
+    }
+
+    .cors-note button {
+      background: none;
+      border: none;
+      color: var(--blue-600);
+      font-weight: 700;
+      cursor: pointer;
+      text-decoration: underline;
+      font-family: inherit;
+      font-size: 12px;
+    }
+
+    /* 알림 배너 (라운드 입체 필 카드) */
+    .alert-banner {
+      padding: 16px 24px;
+      border-radius: 22px;
+      box-shadow: var(--shadow-card-sm);
+      border: 1px solid rgba(255, 255, 255, 0.9);
+      display: flex;
+      align-items: flex-start;
+      gap: 14px;
+    }
+
+    .alert-banner.is-hidden {
+      display: none;
+    }
+
+    .alert-banner.type-info {
+      background: linear-gradient(180deg, #eff6ff 0%, #e5efff 100%);
+      color: var(--navy-900);
+    }
+
+    .alert-banner.type-error {
+      background: linear-gradient(180deg, #fef2f2 0%, #fee2e2 100%);
+      color: #7f1d1d;
+    }
+
+    .alert-banner.type-clear {
+      background: linear-gradient(180deg, #ecfdf5 0%, #d1fae5 100%);
+      color: #064e3b;
+    }
+
+    .alert-pill {
+      width: 6px;
+      align-self: stretch;
+      min-height: 36px;
+      border-radius: var(--radius-pill);
+      flex-shrink: 0;
+    }
+
+    .type-info .alert-pill { background: linear-gradient(180deg, #3b82f6, #1d4ed8); }
+    .type-error .alert-pill { background: linear-gradient(180deg, #f87171, #dc2626); }
+    .type-clear .alert-pill { background: linear-gradient(180deg, #34d399, #059669); }
+
+    .alert-title {
+      font-weight: 800;
+      font-size: 14px;
+      margin-bottom: 2px;
+    }
+
+    .alert-desc {
+      font-size: 13px;
+      line-height: 1.5;
+    }
+
+    /* 인포그래픽 스타일 KPI 카드 (2x2 그리드, Option 01~04 모티프) */
+    .kpi-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 20px;
+    }
+
+    .kpi-card {
+      background: linear-gradient(180deg, #ffffff 0%, #f4f6fa 100%);
+      border: 1px solid rgba(255, 255, 255, 0.95);
+      border-radius: var(--radius-card);
+      box-shadow: var(--shadow-card);
+      padding: 22px 26px;
+      display: grid;
+      grid-template-columns: 112px 12px 58px 1fr;
+      align-items: center;
+      gap: 20px;
+      transition: transform 0.16s ease, box-shadow 0.16s ease;
+    }
+
+    .kpi-card:hover {
+      transform: translateY(-2px);
+      box-shadow:
+        0 22px 42px -12px rgba(15, 23, 42, 0.14),
+        0 8px 18px -4px rgba(15, 23, 42, 0.07),
+        inset 0 2px 0 rgba(255, 255, 255, 1);
+    }
+
+    .kpi-left {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      text-align: center;
+    }
+
+    .kpi-tag {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--slate-500);
+      letter-spacing: -0.01em;
+    }
+
+    .kpi-value {
+      font-size: 40px;
+      font-weight: 800;
+      color: var(--slate-500);
+      font-variant-numeric: tabular-nums;
+      letter-spacing: -0.03em;
+      line-height: 1.05;
+      margin-top: 2px;
+    }
+
+    .kpi-card.is-blue .kpi-value { color: var(--blue-700); }
+    .kpi-card.is-amber .kpi-value { color: var(--warn-amber); }
+    .kpi-card.is-red .kpi-value { color: var(--warn-red); }
+    .kpi-card.is-navy .kpi-value { color: var(--navy-900); }
+
+    /* 핵심 시그니처: 세로 입체 필 바 */
+    .kpi-pillar {
+      width: 12px;
+      height: 82px;
+      border-radius: var(--radius-pill);
+      position: relative;
+    }
+
+    .kpi-pillar::after {
+      content: '';
+      position: absolute;
+      top: 4px;
+      left: 2px;
+      width: 3px;
+      height: 26px;
+      border-radius: var(--radius-pill);
+      background: rgba(255, 255, 255, 0.48);
+    }
+
+    .kpi-card.is-blue .kpi-pillar {
+      background: linear-gradient(180deg, #60a5fa 0%, #2563eb 100%);
+      box-shadow: 0 6px 14px rgba(37, 99, 235, 0.34);
+    }
+
+    .kpi-card.is-amber .kpi-pillar {
+      background: linear-gradient(180deg, #fbbf24 0%, #f97316 55%, #ea580c 100%);
+      box-shadow: 0 6px 14px rgba(249, 115, 22, 0.38);
+    }
+
+    .kpi-card.is-red .kpi-pillar {
+      background: linear-gradient(180deg, #f87171 0%, #dc2626 100%);
+      box-shadow: 0 6px 14px rgba(220, 38, 38, 0.34);
+    }
+
+    .kpi-card.is-navy .kpi-pillar {
+      background: linear-gradient(180deg, #475569 0%, #0f172a 100%);
+      box-shadow: 0 6px 14px rgba(15, 23, 42, 0.28);
+    }
+
+    .kpi-icon-well {
+      width: 56px;
+      height: 56px;
+      border-radius: 18px;
+      background-color: var(--surface-inset);
+      box-shadow: var(--shadow-inset);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--slate-400);
+    }
+
+    .kpi-card.is-blue .kpi-icon-well { color: #60a5fa; }
+    .kpi-card.is-amber .kpi-icon-well { color: #fb923c; }
+    .kpi-card.is-red .kpi-icon-well { color: #f87171; }
+    .kpi-card.is-navy .kpi-icon-well { color: #64748b; }
+
+    .kpi-body {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      min-width: 0;
+    }
+
+    .kpi-title {
+      font-size: 16px;
+      font-weight: 800;
+      letter-spacing: -0.02em;
+    }
+
+    .kpi-card.is-blue .kpi-title { color: var(--blue-600); }
+    .kpi-card.is-amber .kpi-title { color: var(--warn-amber-bright); }
+    .kpi-card.is-red .kpi-title { color: var(--warn-red); }
+    .kpi-card.is-navy .kpi-title { color: var(--navy-900); }
+
+    .kpi-foot {
+      font-size: 13px;
+      color: var(--slate-600);
+      font-weight: 500;
+      line-height: 1.45;
+    }
+
+    /* 필터 바 (입체 라운드 바) */
+    .filter-bar {
+      background: linear-gradient(180deg, #ffffff 0%, #f5f7fa 100%);
+      border: 1px solid rgba(255, 255, 255, 0.95);
+      border-radius: 24px;
+      box-shadow: var(--shadow-card-sm);
+      padding: 16px 22px;
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr 1.4fr auto;
+      gap: 12px;
+      align-items: end;
+    }
+
+    /* 2단 메인 시각화 */
+    .viz-grid {
+      display: grid;
+      grid-template-columns: 5fr 7fr;
+      gap: 24px;
+      align-items: stretch;
+    }
+
+    .map-card {
+      display: flex;
+      flex-direction: column;
+    }
+
+    .map-wrapper {
+      margin: 16px 22px 22px;
+      padding: 18px;
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      background: linear-gradient(180deg, #e7eef6 0%, #eef3f9 100%);
+      border-radius: 22px;
+      box-shadow: var(--shadow-inset);
+      border: 1px solid rgba(203, 213, 225, 0.55);
+    }
+
+    .map-legend {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      font-size: 12px;
+      color: var(--slate-600);
+      flex-wrap: wrap;
+    }
+
+    .legend-item {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-weight: 600;
+      background: var(--surface-inset);
+      padding: 4px 10px;
+      border-radius: var(--radius-pill);
+    }
+
+    .legend-swatch {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+    }
+
+    .korea-svg {
+      width: 100%;
+      max-width: 440px;
+      height: auto;
+      display: block;
+      user-select: none;
+    }
+
+    .land-shadow-group {
+      filter: drop-shadow(0 6px 10px rgba(15, 23, 42, 0.1));
+    }
+
+    .sea-zone {
+      fill: rgba(255, 255, 255, 0.42);
+      stroke: #cbd5e1;
+      stroke-width: 1;
+      stroke-dasharray: 4 3;
+      cursor: pointer;
+      transition: fill 0.15s ease, stroke 0.15s ease;
+    }
+
+    .sea-zone:hover {
+      fill: rgba(255, 255, 255, 0.72);
+      stroke: var(--blue-500);
+      stroke-dasharray: none;
+    }
+
+    .sea-zone.level-advisory {
+      fill: rgba(254, 243, 199, 0.85);
+      stroke: var(--warn-amber-bright);
+    }
+
+    .sea-zone.level-warning {
+      fill: rgba(254, 226, 226, 0.85);
+      stroke: var(--warn-red);
+    }
+
+    .sea-zone.is-selected {
+      stroke: var(--navy-900);
+      stroke-width: 2;
+      stroke-dasharray: none;
+    }
+
+    .region-shape {
+      fill: var(--white);
+      stroke: #cbd5e1;
+      stroke-width: 1.1;
+      cursor: pointer;
+      transition: fill 0.15s ease, stroke 0.15s ease;
+    }
+
+    .region-shape:hover {
+      stroke: var(--navy-900);
+      stroke-width: 1.8;
+    }
+
+    .region-shape.level-advisory {
+      fill: var(--warn-amber-bright);
+      stroke: #c2410c;
+    }
+
+    .region-shape.level-warning {
+      fill: var(--warn-red-bright);
+      stroke: #991b1b;
+    }
+
+    .region-shape.is-selected {
+      stroke: var(--navy-900);
+      stroke-width: 2.4;
+    }
+
+    .region-label {
+      font-size: 10.5px;
+      font-weight: 700;
+      fill: var(--navy-800);
+      pointer-events: none;
+      text-anchor: middle;
+    }
+
+    .region-label.on-dark {
+      fill: var(--white);
+    }
+
+    .sea-label {
+      font-size: 10.5px;
+      font-weight: 700;
+      fill: var(--slate-500);
+      pointer-events: none;
+      text-anchor: middle;
+    }
+
+    .map-count-badge {
+      font-size: 9.5px;
+      font-weight: 800;
+      fill: var(--navy-900);
+      pointer-events: none;
+      text-anchor: middle;
+    }
+
+    .map-tooltip {
+      position: fixed;
+      z-index: 60;
+      background-color: var(--navy-900);
+      color: var(--white);
+      padding: 11px 14px;
+      border-radius: 16px;
+      font-size: 12px;
+      max-width: 260px;
+      pointer-events: none;
+      display: none;
+      box-shadow: 0 14px 28px rgba(15, 23, 42, 0.25);
+    }
+
+    .map-tooltip-title {
+      font-weight: 800;
+      margin-bottom: 4px;
+      font-size: 13px;
+    }
+
+    /* 차트 컬럼 */
+    .charts-col {
+      display: flex;
+      flex-direction: column;
+      gap: 24px;
+    }
+
+    .chart-box {
+      position: relative;
+      height: 240px;
+      width: 100%;
+    }
+
+    .doughnut-layout {
+      display: grid;
+      grid-template-columns: 220px 1fr;
+      gap: 22px;
+      align-items: center;
+    }
+
+    .doughnut-canvas-wrap {
+      position: relative;
+      height: 205px;
+      width: 205px;
+      margin: 0 auto;
+    }
+
+    .type-breakdown {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      max-height: 210px;
+      overflow-y: auto;
+      padding-right: 4px;
+    }
+
+    .type-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 9px 14px;
+      border-radius: 14px;
+      font-size: 12.5px;
+      background-color: var(--surface-inset);
+      box-shadow: inset 0 1px 3px rgba(15, 23, 42, 0.05);
+    }
+
+    .type-row-left {
+      display: flex;
+      align-items: center;
+      gap: 9px;
+      font-weight: 700;
+      color: var(--navy-900);
+    }
+
+    .type-swatch {
+      width: 8px;
+      height: 18px;
+      border-radius: var(--radius-pill);
+      flex-shrink: 0;
+    }
+
+    .type-row-right {
+      font-variant-numeric: tabular-nums;
+      color: var(--slate-600);
+      font-weight: 700;
+    }
+
+    .empty-state {
+      padding: 36px 16px;
+      text-align: center;
+      color: var(--slate-500);
+      font-size: 13px;
+      font-weight: 500;
+    }
+
+    /* 세그먼트 필 탭 */
+    .tabs-header {
+      padding: 16px 24px 12px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+
+    .tabs-bar {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px;
+      border-radius: var(--radius-pill);
+      background-color: var(--surface-inset);
+      box-shadow: var(--shadow-inset);
+      overflow-x: auto;
+      max-width: 100%;
+    }
+
+    .tab-btn {
+      padding: 9px 16px;
+      border: none;
+      background: transparent;
+      border-radius: var(--radius-pill);
+      font-family: inherit;
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--slate-600);
+      cursor: pointer;
+      white-space: nowrap;
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      transition: background-color 0.15s ease, color 0.15s ease, box-shadow 0.15s ease;
+    }
+
+    .tab-btn:hover {
+      color: var(--navy-900);
+    }
+
+    .tab-btn.is-active {
+      color: var(--navy-900);
+      background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
+      box-shadow: 0 4px 10px rgba(15, 23, 42, 0.08), inset 0 1px 0 #ffffff;
+    }
+
+    .tab-count {
+      padding: 2px 8px;
+      border-radius: var(--radius-pill);
+      font-size: 11px;
+      background-color: rgba(148, 163, 184, 0.22);
+      color: var(--navy-800);
+      font-variant-numeric: tabular-nums;
+    }
+
+    .tab-btn.is-active .tab-count {
+      background-color: var(--blue-100);
+      color: var(--blue-700);
+    }
+
+    .tab-pane {
+      display: none;
+      padding: 4px 24px 24px;
+    }
+
+    .tab-pane.is-active {
+      display: block;
+    }
+
+    /* 테이블 음각 컨테이너 */
+    .table-wrap {
+      overflow-x: auto;
+      border-radius: 18px;
+      background-color: var(--white);
+      border: 1px solid rgba(226, 232, 240, 0.8);
+      box-shadow: inset 0 1px 4px rgba(15, 23, 42, 0.03);
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      text-align: left;
+      font-size: 13px;
+    }
+
+    thead th {
+      background-color: #f4f6fa;
+      color: var(--slate-600);
+      font-weight: 700;
+      font-size: 12px;
+      padding: 13px 16px;
+      border-bottom: 1px solid var(--slate-200);
+      white-space: nowrap;
+    }
+
+    tbody td {
+      padding: 12px 16px;
+      border-bottom: 1px solid var(--slate-100);
+      color: var(--navy-900);
+      vertical-align: middle;
+    }
+
+    tbody tr:last-child td {
+      border-bottom: none;
+    }
+
+    tbody tr:hover {
+      background-color: #f8fafc;
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      padding: 3px 10px;
+      border-radius: var(--radius-pill);
+      font-size: 11.5px;
+      font-weight: 700;
+      white-space: nowrap;
+      border: 1px solid transparent;
+    }
+
+    .badge-warning {
+      background-color: var(--warn-red-bg);
+      color: var(--warn-red);
+      border-color: var(--warn-red-border);
+    }
+
+    .badge-advisory {
+      background-color: var(--warn-amber-bg);
+      color: var(--warn-amber);
+      border-color: var(--warn-amber-border);
+    }
+
+    .badge-info {
+      background-color: var(--blue-50);
+      color: var(--blue-700);
+      border-color: var(--blue-100);
+    }
+
+    .badge-neutral {
+      background-color: var(--surface-inset);
+      color: var(--slate-600);
+      border-color: var(--slate-200);
+    }
+
+    .mono {
+      font-variant-numeric: tabular-nums;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-size: 12px;
+    }
+
+    /* 예비특보 박스 */
+    .prelim-box {
+      margin-top: 18px;
+      padding: 16px 20px;
+    }
+
+    .prelim-title {
+      font-size: 13.5px;
+      font-weight: 800;
+      color: var(--navy-900);
+      margin-bottom: 8px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .prelim-pre {
+      white-space: pre-wrap;
+      font-family: inherit;
+      font-size: 12.5px;
+      color: var(--navy-800);
+      line-height: 1.65;
+    }
+
+    /* 모달 */
+    .modal-backdrop {
+      position: fixed;
+      inset: 0;
+      background-color: rgba(15, 23, 42, 0.45);
+      backdrop-filter: blur(4px);
+      z-index: 80;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+
+    .modal-backdrop.is-open {
+      display: flex;
+    }
+
+    .modal {
+      background: linear-gradient(180deg, #ffffff 0%, #f5f7fa 100%);
+      border: 1px solid rgba(255, 255, 255, 0.95);
+      border-radius: var(--radius-card);
+      box-shadow: 0 28px 60px rgba(15, 23, 42, 0.25);
+      width: 100%;
+      max-width: 720px;
+      max-height: 85vh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    .modal-header {
+      padding: 18px 24px;
+      border-bottom: 1px solid var(--slate-200);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+    }
+
+    .modal-title {
+      font-size: 15.5px;
+      font-weight: 800;
+      color: var(--navy-900);
+    }
+
+    .modal-body {
+      padding: 20px 24px;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .detail-block {
+      padding: 14px 16px;
+      border-radius: 16px;
+      background-color: var(--surface-inset);
+      box-shadow: var(--shadow-inset);
+    }
+
+    .detail-label {
+      font-size: 11.5px;
+      font-weight: 700;
+      color: var(--slate-500);
+      margin-bottom: 4px;
+    }
+
+    .detail-content {
+      font-size: 13px;
+      color: var(--navy-900);
+      white-space: pre-wrap;
+      line-height: 1.6;
+    }
+
+    .footer {
+      max-width: 1360px;
+      margin: 0 auto;
+      padding: 0 24px 36px;
+      font-size: 12px;
+      color: var(--slate-500);
+      font-weight: 500;
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+
+    /* 반응형 */
+    @media (max-width: 1100px) {
+      .config-grid {
+        grid-template-columns: 1fr 1fr;
+      }
+      .kpi-grid {
+        grid-template-columns: 1fr;
+      }
+      .filter-bar {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+      .viz-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    @media (max-width: 680px) {
+      .topbar-wrap,
+      .container,
+      .footer {
+        padding-left: 14px;
+        padding-right: 14px;
+      }
+      .topbar {
+        border-radius: 22px;
+        padding: 12px 14px;
+      }
+      .hero-heading {
+        font-size: 22px;
+      }
+      .config-grid,
+      .filter-bar,
+      .doughnut-layout {
+        grid-template-columns: 1fr;
+      }
+      .kpi-card {
+        grid-template-columns: 84px 10px 46px 1fr;
+        gap: 12px;
+        padding: 18px 16px;
+      }
+      .kpi-value {
+        font-size: 30px;
+      }
+      .kpi-icon-well {
+        width: 46px;
+        height: 46px;
+        border-radius: 14px;
+      }
+      .panel-header,
+      .panel-body,
+      .tab-pane,
+      .tabs-header {
+        padding-left: 16px;
+        padding-right: 16px;
+      }
+      .map-wrapper {
+        margin: 12px 14px 16px;
+        padding: 12px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <!-- 플로팅 라운드 상단 바 -->
+  <div class="topbar-wrap">
+    <header class="topbar">
+      <div class="brand">
+        <div class="brand-mark" aria-hidden="true">
+          <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 2v2" />
+            <path d="M12 20v2" />
+            <path d="m4.93 4.93 1.41 1.41" />
+            <path d="m17.66 17.66 1.41 1.41" />
+            <path d="M2 12h2" />
+            <path d="M20 12h2" />
+            <circle cx="12" cy="12" r="5" />
+          </svg>
+        </div>
+        <div>
+          <div class="brand-title">
+            KMA 기상관제
+            <span class="brand-pill-bar" aria-hidden="true"></span>
+          </div>
+          <div class="brand-sub">WthrWrnInfoService 실시간 특보 데이터</div>
+        </div>
+      </div>
+
+      <div class="topbar-controls">
+        <div id="apiStatusPill" class="status-pill">
+          <span class="status-dot"></span>
+          <span id="apiStatusText">인증키 입력 대기</span>
+        </div>
+        <span id="lastUpdatedLabel" class="timestamp-text">마지막 업데이트: -</span>
+        <button id="refreshBtn" class="btn btn-primary" type="button">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 12a9 9 0 1 1-2.64-6.36" />
+            <polyline points="21 3 21 9 15 9" />
+          </svg>
+          새로고침
+        </button>
+        <button id="toggleConfigBtn" class="btn btn-light" type="button">API 설정</button>
+      </div>
+    </header>
+  </div>
+
+  <main class="container">
+    <!-- 인포그래픽 히어로 타이틀 -->
+    <section class="hero-intro">
+      <h1 class="hero-heading">
+        전국 <span class="accent">기상특보</span> 실시간 <span class="accent-blue">대시보드</span>
+      </h1>
+      <p class="hero-desc">
+        기상청 공공데이터 Open API를 기반으로 전국 육상·해상 특보 발효 현황, 유형별 통계 및 통보문 상세 정보를 직관적으로 제공합니다.
+      </p>
+    </section>
+
+    <!-- API 인증키 및 프록시 설정 -->
+    <section id="configPanel" class="panel config-panel">
+      <div class="panel-header">
+        <div class="panel-title-wrap">
+          <span class="title-pill-bar is-orange"></span>
+          <div>
+            <span class="panel-title">공공데이터포털 Open API 인증키 설정</span>
+            <span class="panel-subtitle">보안을 위해 인증키는 코드에 저장되지 않으며 사용자가 직접 입력합니다.</span>
+          </div>
+        </div>
+        <button id="hideConfigBtn" class="btn btn-light btn-sm" type="button">접기</button>
+      </div>
+      <div class="panel-body">
+        <form id="apiConfigForm" class="config-grid">
+          <div class="field">
+            <label class="field-label" for="serviceKeyInput">일반 인증키 (ServiceKey)</label>
+            <div class="input-group">
+              <input
+                id="serviceKeyInput"
+                class="input input-with-btn"
+                type="password"
+                autocomplete="off"
+                placeholder="공공데이터포털에서 발급받은 인증키를 입력하세요"
+              />
+              <button id="toggleKeyVisibility" class="input-toggle-btn" type="button">표시</button>
+            </div>
+          </div>
+
+          <div class="field">
+            <label class="field-label" for="keyModeSelect">인증키 인코딩 방식</label>
+            <select id="keyModeSelect" class="select">
+              <option value="auto">자동 판별 (권장)</option>
+              <option value="decoding">Decoding 키 (URL 인코딩)</option>
+              <option value="encoding">Encoding 키 (원본 사용)</option>
+            </select>
+          </div>
+
+          <div class="field">
+            <label class="field-label" for="proxyUrlInput">CORS 중계 프록시 URL (선택사항)</label>
+            <input
+              id="proxyUrlInput"
+              class="input"
+              type="url"
+              placeholder="예: https://your-worker.workers.dev/?url="
+            />
+          </div>
+
+          <button id="applyConfigBtn" class="btn btn-accent" type="submit" style="height: 40px; padding: 0 22px;">
+            연동 및 조회
+          </button>
+        </form>
+
+        <div class="config-meta">
+          <div style="display:flex; align-items:center; gap:14px; flex-wrap:wrap;">
+            <label class="checkbox-label">
+              <input id="rememberKeyCheckbox" type="checkbox" />
+              이 브라우저(localStorage)에 인증키 임시 저장
+            </label>
+            <button id="clearKeyBtn" class="btn btn-light btn-sm" type="button">저장된 키 삭제</button>
+          </div>
+          <div class="cors-note">
+            브라우저 직접 호출 시 CORS 오류가 발생하나요?
+            <button id="openCorsGuideBtn" type="button">CORS 원인 및 중계 방식 안내 보기</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 상태/예외 알림 배너 -->
+    <section id="alertBanner" class="alert-banner type-info">
+      <div class="alert-pill"></div>
+      <div>
+        <div id="alertTitle" class="alert-title">API 인증키를 입력해 주세요</div>
+        <div id="alertDesc" class="alert-desc">
+          상단 설정 패널에 기상청 기상특보 조회서비스 인증키를 입력하고 [연동 및 조회] 버튼을 누르면 실시간 기상특보 데이터를 불러옵니다.
+        </div>
+      </div>
+    </section>
+
+    <!-- 인포그래픽 스타일 KPI 카드 4종 (2x2) -->
+    <section class="kpi-grid" aria-label="기상특보 요약 지표">
+      <!-- 01: 전체 발효 특보 -->
+      <article class="kpi-card is-blue">
+        <div class="kpi-left">
+          <span class="kpi-tag">전체 현황</span>
+          <span id="kpiTotal" class="kpi-value">0</span>
+        </div>
+        <div class="kpi-pillar" aria-hidden="true"></div>
+        <div class="kpi-icon-well" aria-hidden="true">
+          <svg width="26" height="26" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M12 2a7 7 0 0 0-7 7v4.3l-1.7 2.8A1 1 0 0 0 4.2 17.5h15.6a1 1 0 0 0 .9-1.4L19 13.3V9a7 7 0 0 0-7-7zm0 20a3 3 0 0 0 2.8-2h-5.6A3 3 0 0 0 12 22z"/>
+          </svg>
+        </div>
+        <div class="kpi-body">
+          <div class="kpi-title">전체 발효 특보 (특보구역 기준)</div>
+          <div id="kpiTotalSub" class="kpi-foot">발효 중인 특보 유형 0종 · 실시간 집계</div>
+        </div>
+      </article>
+
+      <!-- 02: 주의보 발효 -->
+      <article class="kpi-card is-amber">
+        <div class="kpi-left">
+          <span class="kpi-tag">주의보</span>
+          <span id="kpiAdvisory" class="kpi-value">0</span>
+        </div>
+        <div class="kpi-pillar" aria-hidden="true"></div>
+        <div class="kpi-icon-well" aria-hidden="true">
+          <svg width="26" height="26" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M12 3 1.8 20.5A1.2 1.2 0 0 0 2.8 22h18.4a1.2 1.2 0 0 0 1-1.8L12 3zm1 14h-2v-2h2v2zm0-4h-2V9h2v4z"/>
+          </svg>
+        </div>
+        <div class="kpi-body">
+          <div class="kpi-title">주의보 발효 현황</div>
+          <div id="kpiAdvisorySub" class="kpi-foot">전체 대비 0% · 노랑·주황 주의 단계</div>
+        </div>
+      </article>
+
+      <!-- 03: 경보 발효 -->
+      <article class="kpi-card is-red">
+        <div class="kpi-left">
+          <span class="kpi-tag">경보</span>
+          <span id="kpiWarning" class="kpi-value">0</span>
+        </div>
+        <div class="kpi-pillar" aria-hidden="true"></div>
+        <div class="kpi-icon-well" aria-hidden="true">
+          <svg width="26" height="26" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M12 2 4 5.5v6.2c0 5.1 3.4 9.8 8 11.3 4.6-1.5 8-6.2 8-11.3V5.5L12 2zm1 13h-2v-2h2v2zm0-4h-2V7h2v4z"/>
+          </svg>
+        </div>
+        <div class="kpi-body">
+          <div class="kpi-title">경보 발효 현황</div>
+          <div id="kpiWarningSub" class="kpi-foot">전체 대비 0% · 적색 고위험 단계</div>
+        </div>
+      </article>
+
+      <!-- 04: 발효 권역 / 예비특보 -->
+      <article class="kpi-card is-navy">
+        <div class="kpi-left">
+          <span class="kpi-tag">영향 권역</span>
+          <span id="kpiAreas" class="kpi-value">0</span>
+        </div>
+        <div class="kpi-pillar" aria-hidden="true"></div>
+        <div class="kpi-icon-well" aria-hidden="true">
+          <svg width="26" height="26" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M12 2C8.1 2 5 5.1 5 9c0 5.2 7 13 7 13s7-7.8 7-13c0-3.9-3.1-7-7-7zm0 9.5A2.5 2.5 0 1 1 12 6.5a2.5 2.5 0 0 1 0 5z"/>
+          </svg>
+        </div>
+        <div class="kpi-body">
+          <div class="kpi-title">특보 발효 권역 및 예비특보</div>
+          <div id="kpiAreasSub" class="kpi-foot">예비특보 0건 · 발표시각 -</div>
+        </div>
+      </article>
+    </section>
+
+    <!-- 필터 바 -->
+    <section class="filter-bar" aria-label="특보 필터">
+      <div class="field">
+        <label class="field-label" for="regionFilter">지역 필터</label>
+        <select id="regionFilter" class="select">
+          <option value="ALL">전체 지역 (전국 + 해상)</option>
+          <option value="서울">서울특별시</option>
+          <option value="인천">인천광역시</option>
+          <option value="경기">경기도</option>
+          <option value="강원">강원특별자치도</option>
+          <option value="충북">충청북도</option>
+          <option value="충남">충청남도</option>
+          <option value="세종">세종특별자치시</option>
+          <option value="대전">대전광역시</option>
+          <option value="전북">전북특별자치도</option>
+          <option value="전남">전라남도</option>
+          <option value="광주">광주광역시</option>
+          <option value="경북">경상북도 (울릉·독도 포함)</option>
+          <option value="대구">대구광역시</option>
+          <option value="울산">울산광역시</option>
+          <option value="부산">부산광역시</option>
+          <option value="경남">경상남도</option>
+          <option value="제주">제주특별자치도</option>
+          <option value="해상">해상 (동해·서해·남해·제주해상)</option>
+        </select>
+      </div>
+
+      <div class="field">
+        <label class="field-label" for="typeFilter">특보 유형</label>
+        <select id="typeFilter" class="select">
+          <option value="ALL">전체 유형</option>
+        </select>
+      </div>
+
+      <div class="field">
+        <label class="field-label" for="levelFilter">특보 강도</label>
+        <select id="levelFilter" class="select">
+          <option value="ALL">전체 (경보 + 주의보)</option>
+          <option value="경보">경보</option>
+          <option value="주의보">주의보</option>
+        </select>
+      </div>
+
+      <div class="field">
+        <label class="field-label" for="searchInput">특보구역·내용 검색</label>
+        <input id="searchInput" class="input" type="search" placeholder="예: 태백, 풍랑, 강원산지" />
+      </div>
+
+      <button id="resetFiltersBtn" class="btn btn-light" type="button" style="height: 40px;">
+        필터 초기화
+      </button>
+    </section>
+
+    <!-- 시각화 2단 그리드: 지도 + 차트 -->
+    <section class="viz-grid">
+      <!-- 좌측: 대한민국 지도 -->
+      <div class="panel map-card">
+        <div class="panel-header">
+          <div class="panel-title-wrap">
+            <span class="title-pill-bar is-orange"></span>
+            <div class="panel-title">대한민국 지역별 특보 지도</div>
+          </div>
+          <div class="map-legend">
+            <span class="legend-item">
+              <span class="legend-swatch" style="background: var(--warn-red-bright);"></span>경보
+            </span>
+            <span class="legend-item">
+              <span class="legend-swatch" style="background: var(--warn-amber-bright);"></span>주의보
+            </span>
+            <span class="legend-item">
+              <span class="legend-swatch" style="background: var(--white); border:1px solid #cbd5e1;"></span>없음
+            </span>
+          </div>
+        </div>
+        <div class="map-wrapper">
+          <svg id="koreaMapSvg" class="korea-svg" viewBox="0 0 540 620" role="img" aria-label="대한민국 시·도 및 해상 기상특보 지도">
+            <!-- 해상 권역 -->
+            <path id="sea-서해" class="sea-zone" data-region="해상" data-subsea="서해" d="M 24,95 L 146,95 L 136,285 L 116,442 L 24,442 Z" />
+            <text class="sea-label" x="72" y="255">서해 해상</text>
+            <text id="badge-sea-서해" class="map-count-badge" x="72" y="271"></text>
+
+            <path id="sea-동해" class="sea-zone" data-region="해상" data-subsea="동해" d="M 308,42 L 516,42 L 516,385 L 408,385 L 388,210 L 338,110 Z" />
+            <text class="sea-label" x="448" y="268">동해 해상</text>
+            <text id="badge-sea-동해" class="map-count-badge" x="448" y="284"></text>
+
+            <path id="sea-남해" class="sea-zone" data-region="해상" data-subsea="남해" d="M 116,442 L 240,455 L 368,428 L 408,385 L 516,385 L 516,514 L 222,514 L 116,498 Z" />
+            <text class="sea-label" x="345" y="482">남해 해상</text>
+            <text id="badge-sea-남해" class="map-count-badge" x="345" y="498"></text>
+
+            <path id="sea-제주해상" class="sea-zone" data-region="해상" data-subsea="제주해상" d="M 24,498 L 222,498 L 222,602 L 24,602 Z" />
+            <text class="sea-label" x="68" y="530">제주 해상</text>
+            <text id="badge-sea-제주해상" class="map-count-badge" x="68" y="546"></text>
+
+            <!-- 육상 시·도 (입체 그림자 그룹) -->
+            <g class="land-shadow-group">
+              <path id="map-경기" class="region-shape" data-region="경기" d="M 156,105 L 200,72 L 236,92 L 246,135 L 246,185 L 235,215 L 195,228 L 158,215 L 152,185 L 168,155 L 154,132 Z" />
+              <path id="map-강원" class="region-shape" data-region="강원" d="M 200,72 L 295,48 L 325,95 L 354,155 L 372,198 L 340,215 L 285,205 L 246,185 L 246,135 L 236,92 Z" />
+              <path id="map-충북" class="region-shape" data-region="충북" d="M 235,215 L 246,185 L 285,205 L 308,215 L 296,255 L 282,298 L 265,315 L 242,292 L 235,255 Z" />
+              <path id="map-충남" class="region-shape" data-region="충남" d="M 138,225 L 158,215 L 195,228 L 235,215 L 235,255 L 220,285 L 232,310 L 175,315 L 152,292 L 136,260 Z" />
+              <path id="map-경북" class="region-shape" data-region="경북" d="M 285,205 L 340,215 L 372,198 L 386,248 L 392,315 L 378,348 L 325,355 L 282,330 L 265,315 L 282,298 L 296,255 Z" />
+              <g class="region-group" data-region="경북">
+                <rect x="424" y="138" width="76" height="50" rx="10" fill="#ffffff" stroke="#cbd5e1" stroke-width="1" />
+                <path id="map-울릉" class="region-shape" data-region="경북" d="M 442,155 L 456,151 L 460,162 L 446,166 Z" />
+                <circle id="map-독도" class="region-shape" data-region="경북" cx="478" cy="160" r="3.5" />
+                <text class="region-label" x="462" y="180" style="font-size:9.5px;">울릉·독도</text>
+              </g>
+              <path id="map-전북" class="region-shape" data-region="전북" d="M 162,315 L 232,310 L 265,315 L 270,352 L 245,385 L 172,388 L 152,360 Z" />
+              <path id="map-전남" class="region-shape" data-region="전남" d="M 142,388 L 172,388 L 245,385 L 262,415 L 248,452 L 195,468 L 142,462 L 122,425 Z" />
+              <path id="map-경남" class="region-shape" data-region="경남" d="M 265,315 L 282,330 L 325,355 L 368,365 L 352,415 L 308,438 L 262,432 L 245,385 L 270,352 Z" />
+              <path id="map-울산" class="region-shape" data-region="울산" d="M 378,348 L 396,352 L 392,386 L 365,382 L 368,365 Z" />
+              <path id="map-부산" class="region-shape" data-region="부산" d="M 358,384 L 390,388 L 375,418 L 345,412 Z" />
+              <path id="map-대구" class="region-shape" data-region="대구" d="M 312,306 L 344,304 L 350,334 L 315,338 Z" />
+              <path id="map-광주" class="region-shape" data-region="광주" d="M 176,398 L 206,398 L 208,424 L 175,424 Z" />
+              <path id="map-세종" class="region-shape" data-region="세종" d="M 210,245 L 232,242 L 236,268 L 214,270 Z" />
+              <path id="map-대전" class="region-shape" data-region="대전" d="M 214,270 L 238,268 L 242,294 L 216,296 Z" />
+              <path id="map-서울" class="region-shape" data-region="서울" d="M 182,138 L 208,134 L 216,154 L 202,168 L 180,162 Z" />
+              <path id="map-인천" class="region-shape" data-region="인천" d="M 140,138 L 172,135 L 176,164 L 146,170 L 136,152 Z" />
+              <circle id="map-서해5도" class="region-shape" data-region="인천" cx="102" cy="134" r="5.5" />
+              <path id="map-제주" class="region-shape" data-region="제주" d="M 118,548 C 145,534 185,536 196,554 C 198,572 172,584 136,582 C 110,578 104,562 118,548 Z" />
+            </g>
+
+            <!-- 라벨 -->
+            <text id="lbl-서울" class="region-label" x="198" y="155">서울</text>
+            <text id="lbl-인천" class="region-label" x="156" y="157">인천</text>
+            <text id="lbl-경기" class="region-label" x="208" y="198">경기</text>
+            <text id="lbl-강원" class="region-label" x="298" y="146">강원</text>
+            <text id="lbl-충북" class="region-label" x="266" y="252">충북</text>
+            <text id="lbl-충남" class="region-label" x="176" y="274">충남</text>
+            <text id="lbl-세종" class="region-label" x="223" y="260" style="font-size:9px;">세종</text>
+            <text id="lbl-대전" class="region-label" x="228" y="286" style="font-size:9.5px;">대전</text>
+            <text id="lbl-경북" class="region-label" x="342" y="276">경북</text>
+            <text id="lbl-대구" class="region-label" x="331" y="325">대구</text>
+            <text id="lbl-전북" class="region-label" x="212" y="352">전북</text>
+            <text id="lbl-전남" class="region-label" x="188" y="444">전남</text>
+            <text id="lbl-광주" class="region-label" x="192" y="415" style="font-size:9.5px;">광주</text>
+            <text id="lbl-경남" class="region-label" x="304" y="392">경남</text>
+            <text id="lbl-울산" class="region-label" x="380" y="372" style="font-size:9.5px;">울산</text>
+            <text id="lbl-부산" class="region-label" x="368" y="405" style="font-size:9.5px;">부산</text>
+            <text id="lbl-제주" class="region-label" x="152" y="564">제주</text>
+          </svg>
+          <div style="margin-top: 10px; font-size: 12px; color: var(--slate-500); font-weight: 600;">
+            지도에서 시·도 또는 해상을 클릭하면 해당 지역으로 필터링됩니다.
+          </div>
+        </div>
+      </div>
+
+      <!-- 우측: 차트 2종 -->
+      <div class="charts-col">
+        <div class="panel">
+          <div class="panel-header">
+            <div class="panel-title-wrap">
+              <span class="title-pill-bar"></span>
+              <div>
+                <span class="panel-title">기상특보 유형별 분포</span>
+                <span class="panel-subtitle">현재 발효 중인 특보구역 기준</span>
+              </div>
+            </div>
+          </div>
+          <div class="panel-body">
+            <div id="doughnutEmpty" class="empty-state">연동된 기상특보 데이터가 없습니다.</div>
+            <div id="doughnutContent" class="doughnut-layout" style="display:none;">
+              <div class="doughnut-canvas-wrap">
+                <canvas id="typeDoughnutChart"></canvas>
+              </div>
+              <div id="typeBreakdownList" class="type-breakdown"></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-header">
+            <div class="panel-title-wrap">
+              <span class="title-pill-bar is-orange"></span>
+              <div>
+                <span class="panel-title">지역별 기상특보 건수</span>
+                <span class="panel-subtitle">주의보(오렌지) · 경보(적색) 구분</span>
+              </div>
+            </div>
+          </div>
+          <div class="panel-body">
+            <div id="barEmpty" class="empty-state">연동된 지역별 통계 데이터가 없습니다.</div>
+            <div id="barContent" class="chart-box" style="display:none;">
+              <canvas id="regionBarChart"></canvas>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 상세 목록 탭 영역 -->
+    <section class="panel">
+      <div class="tabs-header">
+        <div class="panel-title-wrap">
+          <span class="title-pill-bar"></span>
+          <div class="panel-title">기상특보 상세 현황 및 통보문</div>
+        </div>
+        <div class="tabs-bar" role="tablist">
+          <button class="tab-btn is-active" data-tab="activeTab" role="tab" aria-selected="true">
+            현재 발효 특보
+            <span id="tabActiveCount" class="tab-count">0</span>
+          </button>
+          <button class="tab-btn" data-tab="bulletinTab" role="tab" aria-selected="false">
+            최신 통보문
+            <span id="tabBulletinCount" class="tab-count">0</span>
+          </button>
+          <button class="tab-btn" data-tab="codeTab" role="tab" aria-selected="false">
+            7일 코드 이력
+            <span id="tabCodeCount" class="tab-count">0</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- 탭 1: 현재 발효 목록 -->
+      <div id="activeTab" class="tab-pane is-active">
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>강도</th>
+                <th>특보 유형</th>
+                <th>권역</th>
+                <th>세부 특보구역</th>
+                <th>발표시각</th>
+                <th>발효현황 시각</th>
+              </tr>
+            </thead>
+            <tbody id="activeTableBody">
+              <tr>
+                <td colspan="6" class="empty-state">API 인증키 입력 후 데이터를 조회해 주세요.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div id="prelimSection" class="prelim-box inset-surface" style="display:none;">
+          <div class="prelim-title">
+            <span class="title-pill-bar is-orange" style="height:16px;"></span>
+            예비특보 발효현황 및 참고사항
+          </div>
+          <pre id="prelimContent" class="prelim-pre"></pre>
+        </div>
+      </div>
+
+      <!-- 탭 2: 통보문 목록 -->
+      <div id="bulletinTab" class="tab-pane">
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>발표번호</th>
+                <th>발표지점</th>
+                <th>제목</th>
+                <th>발표시각</th>
+                <th>발효시각</th>
+                <th>상세</th>
+              </tr>
+            </thead>
+            <tbody id="bulletinTableBody">
+              <tr>
+                <td colspan="6" class="empty-state">조회된 통보문이 없습니다.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- 탭 3: 특보 코드 이력 -->
+      <div id="codeTab" class="tab-pane">
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>특보구역코드</th>
+                <th>구역명 (권역)</th>
+                <th>특보종류</th>
+                <th>강도</th>
+                <th>발표구분</th>
+                <th>발효시각</th>
+                <th>해제시각</th>
+              </tr>
+            </thead>
+            <tbody id="codeTableBody">
+              <tr>
+                <td colspan="7" class="empty-state">조회된 특보 코드 이력이 없습니다.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <div>자료 출처: 기상청 공공데이터포털 Open API (기상특보 조회서비스 · WthrWrnInfoService)</div>
+    <div>단일 HTML5 애플리케이션 · GitHub Pages 정적 호스팅 호환</div>
+  </footer>
+
+  <!-- 지도 호버 툴팁 -->
+  <div id="mapTooltip" class="map-tooltip"></div>
+
+  <!-- 상세 보기 모달 -->
+  <div id="detailModalBackdrop" class="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+    <div class="modal">
+      <div class="modal-header">
+        <div id="modalTitle" class="modal-title">상세 내용</div>
+        <button id="modalCloseBtn" class="btn btn-light btn-sm" type="button">닫기</button>
+      </div>
+      <div id="modalBody" class="modal-body"></div>
+    </div>
+  </div>
+
+  <script>
+    (function () {
+      'use strict';
+
+      const API_BASE = 'https://apis.data.go.kr/1360000/WthrWrnInfoService';
+      const STORAGE_KEYS = {
+        key: 'kma_wrn_service_key',
+        mode: 'kma_wrn_key_mode',
+        proxy: 'kma_wrn_proxy_url',
+        remember: 'kma_wrn_remember'
+      };
+
+      const WARN_VAR_MAP = {
+        '1': '강풍',
+        '2': '호우',
+        '3': '한파',
+        '4': '건조',
+        '5': '폭풍해일',
+        '6': '풍랑',
+        '7': '태풍',
+        '8': '대설',
+        '9': '황사',
+        '12': '폭염'
+      };
+
+      const WARN_STRESS_MAP = {
+        '0': '주의보',
+        '1': '경보'
+      };
+
+      const COMMAND_MAP = {
+        '1': '발표',
+        '2': '해제',
+        '3': '연장',
+        '4': '대치해제',
+        '5': '대치발표',
+        '6': '변경',
+        '7': '변경해제'
+      };
+
+      const STN_MAP = {
+        '108': '기상청(전국)',
+        '109': '수도권기상청',
+        '105': '강원지방기상청',
+        '131': '청주기상지청',
+        '133': '대전지방기상청',
+        '146': '전주기상지청',
+        '156': '광주지방기상청',
+        '143': '대구지방기상청',
+        '159': '부산지방기상청',
+        '184': '제주지방기상청'
+      };
+
+      const TYPE_COLORS = {
+        '강풍': '#2563eb',
+        '풍랑': '#0284c7',
+        '호우': '#1d4ed8',
+        '대설': '#6366f1',
+        '한파': '#0f766e',
+        '건조': '#f97316',
+        '폭염': '#dc2626',
+        '태풍': '#7c3aed',
+        '황사': '#ca8a04',
+        '폭풍해일': '#be123c'
+      };
+
+      const ALL_REGIONS = [
+        '서울', '인천', '경기', '강원', '충북', '충남', '세종', '대전',
+        '전북', '전남', '광주', '경북', '대구', '울산', '부산', '경남', '제주', '해상'
+      ];
+
+      const state = {
+        activeItems: [],
+        prelimText: '',
+        otherText: '',
+        statusMeta: null,
+        bulletins: [],
+        codeRecords: [],
+        lastUpdated: null,
+        filters: {
+          region: 'ALL',
+          type: 'ALL',
+          level: 'ALL',
+          search: ''
+        },
+        charts: {
+          doughnut: null,
+          bar: null
+        }
+      };
+
+      const els = {
+        configPanel: document.getElementById('configPanel'),
+        toggleConfigBtn: document.getElementById('toggleConfigBtn'),
+        hideConfigBtn: document.getElementById('hideConfigBtn'),
+        apiConfigForm: document.getElementById('apiConfigForm'),
+        serviceKeyInput: document.getElementById('serviceKeyInput'),
+        toggleKeyVisibility: document.getElementById('toggleKeyVisibility'),
+        keyModeSelect: document.getElementById('keyModeSelect'),
+        proxyUrlInput: document.getElementById('proxyUrlInput'),
+        rememberKeyCheckbox: document.getElementById('rememberKeyCheckbox'),
+        clearKeyBtn: document.getElementById('clearKeyBtn'),
+        openCorsGuideBtn: document.getElementById('openCorsGuideBtn'),
+        refreshBtn: document.getElementById('refreshBtn'),
+        apiStatusPill: document.getElementById('apiStatusPill'),
+        apiStatusText: document.getElementById('apiStatusText'),
+        lastUpdatedLabel: document.getElementById('lastUpdatedLabel'),
+        alertBanner: document.getElementById('alertBanner'),
+        alertTitle: document.getElementById('alertTitle'),
+        alertDesc: document.getElementById('alertDesc'),
+        kpiTotal: document.getElementById('kpiTotal'),
+        kpiTotalSub: document.getElementById('kpiTotalSub'),
+        kpiAdvisory: document.getElementById('kpiAdvisory'),
+        kpiAdvisorySub: document.getElementById('kpiAdvisorySub'),
+        kpiWarning: document.getElementById('kpiWarning'),
+        kpiWarningSub: document.getElementById('kpiWarningSub'),
+        kpiAreas: document.getElementById('kpiAreas'),
+        kpiAreasSub: document.getElementById('kpiAreasSub'),
+        regionFilter: document.getElementById('regionFilter'),
+        typeFilter: document.getElementById('typeFilter'),
+        levelFilter: document.getElementById('levelFilter'),
+        searchInput: document.getElementById('searchInput'),
+        resetFiltersBtn: document.getElementById('resetFiltersBtn'),
+        doughnutEmpty: document.getElementById('doughnutEmpty'),
+        doughnutContent: document.getElementById('doughnutContent'),
+        typeBreakdownList: document.getElementById('typeBreakdownList'),
+        barEmpty: document.getElementById('barEmpty'),
+        barContent: document.getElementById('barContent'),
+        activeTableBody: document.getElementById('activeTableBody'),
+        prelimSection: document.getElementById('prelimSection'),
+        prelimContent: document.getElementById('prelimContent'),
+        bulletinTableBody: document.getElementById('bulletinTableBody'),
+        codeTableBody: document.getElementById('codeTableBody'),
+        tabActiveCount: document.getElementById('tabActiveCount'),
+        tabBulletinCount: document.getElementById('tabBulletinCount'),
+        tabCodeCount: document.getElementById('tabCodeCount'),
+        mapTooltip: document.getElementById('mapTooltip'),
+        detailModalBackdrop: document.getElementById('detailModalBackdrop'),
+        modalTitle: document.getElementById('modalTitle'),
+        modalBody: document.getElementById('modalBody'),
+        modalCloseBtn: document.getElementById('modalCloseBtn')
+      };
+
+      function escapeHtml(value) {
+        if (value === null || value === undefined) return '';
+        return String(value)
+          .replace(/&/g, '&amp;')
+          .replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;')
+          .replace(/"/g, '&quot;')
+          .replace(/'/g, '&#39;');
+      }
+
+      function getKstDateString(daysOffset = 0) {
+        const now = new Date();
+        const kstMs = now.getTime() + 9 * 60 * 60 * 1000 + daysOffset * 86400000;
+        const d = new Date(kstMs);
+        const y = d.getUTCFullYear();
+        const m = String(d.getUTCMonth() + 1).padStart(2, '0');
+        const day = String(d.getUTCDate()).padStart(2, '0');
+        return `${y}${m}${day}`;
+      }
+
+      function formatKmaTime(tm) {
+        if (!tm || String(tm) === '0') return '-';
+        const s = String(tm).replace(/\D/g, '');
+        if (s.length >= 12) {
+          return `${s.slice(0, 4)}.${s.slice(4, 6)}.${s.slice(6, 8)} ${s.slice(8, 10)}:${s.slice(10, 12)}`;
+        }
+        if (s.length >= 8) {
+          return `${s.slice(0, 4)}.${s.slice(4, 6)}.${s.slice(6, 8)}`;
+        }
+        return String(tm);
+      }
+
+      function formatNowLabel(date) {
+        const y = date.getFullYear();
+        const m = String(date.getMonth() + 1).padStart(2, '0');
+        const d = String(date.getDate()).padStart(2, '0');
+        const hh = String(date.getHours()).padStart(2, '0');
+        const mm = String(date.getMinutes()).padStart(2, '0');
+        const ss = String(date.getSeconds()).padStart(2, '0');
+        return `${y}.${m}.${d} ${hh}:${mm}:${ss}`;
+      }
+
+      function setStatus(type, text) {
+        els.apiStatusPill.className = 'status-pill';
+        if (type === 'live') els.apiStatusPill.classList.add('is-live');
+        if (type === 'loading') els.apiStatusPill.classList.add('is-loading');
+        if (type === 'error') els.apiStatusPill.classList.add('is-error');
+        if (type === 'clear') els.apiStatusPill.classList.add('is-clear');
+        els.apiStatusText.textContent = text;
+      }
+
+      function showBanner(type, title, descHtml) {
+        els.alertBanner.className = `alert-banner type-${type}`;
+        els.alertTitle.textContent = title;
+        els.alertDesc.innerHTML = descHtml;
+      }
+
+      function hideBanner() {
+        els.alertBanner.className = 'alert-banner is-hidden';
+      }
+
+      function resolveEncodedKey(rawKey, mode) {
+        const trimmed = (rawKey || '').trim();
+        if (!trimmed) return '';
+        if (mode === 'encoding') return trimmed;
+        if (mode === 'decoding') return encodeURIComponent(trimmed);
+        if (/%[0-9A-Fa-f]{2}/.test(trimmed)) return trimmed;
+        return encodeURIComponent(trimmed);
+      }
+
+      function buildRequestUrl(operation, queryParams) {
+        const rawKey = els.serviceKeyInput.value;
+        const keyMode = els.keyModeSelect.value;
+        const encodedKey = resolveEncodedKey(rawKey, keyMode);
+
+        const searchParts = [`serviceKey=${encodedKey}`];
+        Object.entries(queryParams).forEach(([k, v]) => {
+          if (v !== undefined && v !== null && v !== '') {
+            searchParts.push(`${encodeURIComponent(k)}=${encodeURIComponent(v)}`);
+          }
+        });
+
+        const targetUrl = `${API_BASE}/${operation}?${searchParts.join('&')}`;
+        const proxy = (els.proxyUrlInput.value || '').trim();
+        if (!proxy) return targetUrl;
+
+        if (proxy.includes('=') || proxy.endsWith('?')) {
+          return `${proxy}${encodeURIComponent(targetUrl)}`;
+        }
+        const cleanProxy = proxy.replace(/\/+$/, '');
+        return `${cleanProxy}/${operation}?${searchParts.join('&')}`;
+      }
+
+      async function fetchKmaEndpoint(operation, queryParams) {
+        const url = buildRequestUrl(operation, queryParams);
+        let response;
+        try {
+          response = await fetch(url, { method: 'GET' });
+        } catch (networkErr) {
+          const isCorsLikely = networkErr instanceof TypeError;
+          const err = new Error(
+            isCorsLikely
+              ? '네트워크 또는 CORS 정책으로 브라우저 직접 호출이 차단되었습니다.'
+              : networkErr.message
+          );
+          err.isCors = isCorsLikely;
+          throw err;
+        }
+
+        const rawText = await response.text();
+        if (!response.ok) {
+          throw new Error(`HTTP 오류 (${response.status}): ${rawText.slice(0, 160)}`);
+        }
+
+        const trimmed = rawText.trim();
+        if (trimmed.startsWith('<')) {
+          const xmlDoc = new DOMParser().parseFromString(trimmed, 'text/xml');
+          const reasonCode = xmlDoc.querySelector('returnReasonCode')?.textContent || '';
+          const returnAuthMsg = xmlDoc.querySelector('returnAuthMsg')?.textContent || '';
+          const errMsg = xmlDoc.querySelector('errMsg')?.textContent || 'XML 오류 응답';
+          const resultCode = xmlDoc.querySelector('resultCode')?.textContent || reasonCode;
+          const resultMsg = xmlDoc.querySelector('resultMsg')?.textContent || returnAuthMsg || errMsg;
+          throw new Error(translateKmaError(resultCode, resultMsg));
+        }
+
+        let json;
+        try {
+          json = JSON.parse(trimmed);
+        } catch (e) {
+          throw new Error('응답 데이터를 JSON으로 파싱할 수 없습니다.');
+        }
+
+        const header = json?.response?.header;
+        if (!header) {
+          throw new Error('기상청 Open API 응답 구조가 올바르지 않습니다.');
+        }
+
+        if (header.resultCode === '03') {
+          return { items: [], totalCount: 0, noData: true };
+        }
+
+        if (header.resultCode !== '00') {
+          throw new Error(translateKmaError(header.resultCode, header.resultMsg));
+        }
+
+        const body = json.response.body || {};
+        const rawItem = body.items?.item;
+        const items = !rawItem ? [] : (Array.isArray(rawItem) ? rawItem : [rawItem]);
+        return {
+          items,
+          totalCount: Number(body.totalCount || items.length),
+          noData: items.length === 0
+        };
+      }
+
+      function translateKmaError(code, msg) {
+        const codeMap = {
+          '01': '어플리케이션 오류가 발생했습니다.',
+          '02': '데이터베이스 오류가 발생했습니다.',
+          '04': 'HTTP 오류가 발생했습니다.',
+          '05': '서비스 연결에 실패했습니다.',
+          '10': '잘못된 요청 파라미터입니다.',
+          '11': '필수 요청 파라미터가 누락되었습니다.',
+          '12': '해당 오픈API 서비스가 없거나 폐기되었습니다.',
+          '20': '서비스 접근이 거부되었습니다.',
+          '22': '일일 트래픽(호출 횟수) 제한을 초과했습니다.',
+          '30': '등록되지 않은 서비스키입니다. 인증키와 인코딩 방식을 확인하세요.',
+          '31': '활용 기간이 만료된 서비스키입니다.',
+          '32': '등록되지 않은 도메인 또는 IP입니다.'
+        };
+        const base = codeMap[String(code)] || msg || '알 수 없는 API 오류';
+        return `[코드 ${code || '-'}] ${base}${msg ? ` (${msg})` : ''}`;
+      }
+
+      function mapAreaCodeToRegion(areaCode, areaName) {
+        const code = String(areaCode || '').toUpperCase();
+        const name = String(areaName || '');
+
+        if (code.startsWith('S')) return '해상';
+        if (code === 'L1070200' || name.includes('군위')) return '대구';
+        if (code === 'L1030100') return '대전';
+        if (['L1082500', 'L1082600', 'L1082700'].includes(code) || name.startsWith('부산')) return '부산';
+        if (['L1082800', 'L1082900'].includes(code) || name.startsWith('울산')) return '울산';
+        if (['L1013600', 'L1014000', 'L1014200', 'L1014300'].includes(code) ||
+            name.includes('서해5도') || name.includes('백령도') || name.includes('연평도') || name.includes('옹진')) {
+          return '인천';
+        }
+        if (code.startsWith('L101')) return '경기';
+        if (code.startsWith('L102')) return '강원';
+        if (code.startsWith('L103')) return '충남';
+        if (code.startsWith('L104')) return '충북';
+        if (code.startsWith('L105')) return '전남';
+        if (code.startsWith('L106')) return '전북';
+        if (code.startsWith('L107') || code.startsWith('L160')) return '경북';
+        if (code.startsWith('L108')) return '경남';
+        if (code.startsWith('L109')) return '제주';
+        if (code.startsWith('L110')) return '서울';
+        if (code.startsWith('L111')) return '인천';
+        if (code.startsWith('L112')) return '대전';
+        if (code.startsWith('L113')) return '광주';
+        if (code.startsWith('L114')) return '대구';
+        if (code.startsWith('L115')) return '부산';
+        if (code.startsWith('L116')) return '울산';
+        if (code.startsWith('L117')) return '세종';
+
+        return mapNameToRegion(name);
+      }
+
+      function mapNameToRegion(rawName) {
+        const n = String(rawName || '').trim();
+        if (!n) return '기타';
+        if (/(바다|해상|평수구역|연안)/.test(n)) return '해상';
+        if (n.startsWith('서울')) return '서울';
+        if (n.startsWith('인천') || n.includes('서해5도') || n.includes('백령') || n.includes('연평') || n.includes('옹진')) return '인천';
+        if (n.startsWith('경기')) return '경기';
+        if (n.startsWith('강원')) return '강원';
+        if (n.startsWith('충청북') || n.startsWith('충북')) return '충북';
+        if (n.startsWith('충청남') || n.startsWith('충남')) return '충남';
+        if (n.startsWith('세종')) return '세종';
+        if (n.startsWith('대전')) return '대전';
+        if (n.startsWith('전라북') || n.startsWith('전북')) return '전북';
+        if (n.startsWith('전라남') || n.startsWith('전남')) return '전남';
+        if (n.startsWith('광주')) return '광주';
+        if (n.startsWith('경상북') || n.startsWith('경북') || n.includes('울릉') || n.includes('독도')) return '경북';
+        if (n.startsWith('대구')) return '대구';
+        if (n.startsWith('울산')) return '울산';
+        if (n.startsWith('부산')) return '부산';
+        if (n.startsWith('경상남') || n.startsWith('경남')) return '경남';
+        if (n.startsWith('제주') || n.includes('추자도')) return '제주';
+        return '기타';
+      }
+
+      function classifySubSea(text) {
+        const s = String(text || '');
+        if (s.includes('제주')) return '제주해상';
+        if (s.includes('동해')) return '동해';
+        if (s.includes('서해')) return '서해';
+        if (s.includes('남해')) return '남해';
+        return '동해';
+      }
+
+      function splitTopLevelCommas(text) {
+        const parts = [];
+        let buf = '';
+        let depth = 0;
+        for (let i = 0; i < text.length; i++) {
+          const ch = text[i];
+          if (ch === '(') depth++;
+          else if (ch === ')' && depth > 0) depth--;
+          if (ch === ',' && depth === 0) {
+            if (buf.trim()) parts.push(buf.trim());
+            buf = '';
+          } else {
+            buf += ch;
+          }
+        }
+        if (buf.trim()) parts.push(buf.trim());
+        return parts;
+      }
+
+      function parsePwnStatusT6(t6, meta) {
+        if (!t6) return [];
+        const clean = String(t6).replace(/\r\n/g, '\n').trim();
+        if (!clean || clean === '없음' || clean.includes('특보 발효 현황 없음')) {
+          return [];
+        }
+
+        const normalized = clean.replace(/\s+(?=[o○]\s+)/g, '\n');
+        const lines = normalized.split('\n').map(l => l.trim()).filter(Boolean);
+
+        const records = [];
+        lines.forEach(line => {
+          const bodyLine = line.replace(/^[o○•\-\*]\s*/, '').trim();
+          const colonIdx = bodyLine.indexOf(':');
+          if (colonIdx === -1) return;
+
+          const labelRaw = bodyLine.slice(0, colonIdx).trim();
+          const areaListRaw = bodyLine.slice(colonIdx + 1).trim();
+          if (!labelRaw || !areaListRaw) return;
+
+          let level = '주의보';
+          if (labelRaw.includes('경보')) level = '경보';
+          else if (labelRaw.includes('주의보')) level = '주의보';
+
+          const type = labelRaw
+            .replace(/^\(\d+\)\s*/, '')
+            .replace(/(경보|주의보|예비특보)$/, '')
+            .trim();
+
+          const tokens = splitTopLevelCommas(areaListRaw);
+          tokens.forEach(token => {
+            const match = token.match(/^([^(]+)\((.+)\)$/);
+            if (match) {
+              const parent = match[1].trim();
+              const inner = match[2].trim();
+              const region = mapNameToRegion(parent);
+
+              if (inner.includes('제외') && !inner.includes(',')) {
+                records.push({
+                  type,
+                  level,
+                  label: `${type}${level}`,
+                  region,
+                  subSea: region === '해상' ? classifySubSea(token) : null,
+                  areaName: token,
+                  tmFc: meta.tmFc,
+                  tmEf: meta.tmEf
+                });
+                return;
+              }
+
+              const children = splitTopLevelCommas(inner);
+              children.forEach(child => {
+                const subRegion = mapNameToRegion(child) !== '기타' ? mapNameToRegion(child) : region;
+                const displayArea = subRegion === '해상'
+                  ? child
+                  : (child.startsWith(parent) ? child : `${parent} ${child}`);
+                records.push({
+                  type,
+                  level,
+                  label: `${type}${level}`,
+                  region: subRegion,
+                  subSea: subRegion === '해상' ? classifySubSea(parent + ' ' + child) : null,
+                  areaName: displayArea,
+                  tmFc: meta.tmFc,
+                  tmEf: meta.tmEf
+                });
+              });
+            } else {
+              const region = mapNameToRegion(token);
+              records.push({
+                type,
+                level,
+                label: `${type}${level}`,
+                region,
+                subSea: region === '해상' ? classifySubSea(token) : null,
+                areaName: token,
+                tmFc: meta.tmFc,
+                tmEf: meta.tmEf
+              });
+            }
+          });
+        });
+
+        return records;
+      }
+
+      function countPrelimLines(t7) {
+        if (!t7) return 0;
+        const s = String(t7).trim();
+        if (!s || s === '없음' || s.includes('예비특보 발효 현황 없음') || s.includes('해당 없음')) return 0;
+        const matches = s.match(/(?:^|\n)\s*(?:\(\d+\)|[o○])/g);
+        return matches ? matches.length : 1;
+      }
+
+      async function loadDashboardData() {
+        const rawKey = els.serviceKeyInput.value.trim();
+        if (!rawKey) {
+          setStatus('error', '인증키 필요');
+          showBanner(
+            'info',
+            'API 인증키를 입력해 주세요',
+            '상단 설정 패널에 일반 인증키를 입력한 후 [연동 및 조회] 버튼을 클릭해 주세요.'
+          );
+          return;
+        }
+
+        saveSettingsIfNeeded();
+        setStatus('loading', '데이터 조회 중...');
+        els.refreshBtn.disabled = true;
+
+        const todayKst = getKstDateString(0);
+        const weekAgoKst = getKstDateString(-6);
+
+        try {
+          const [statusRes, msgRes, codeRes] = await Promise.allSettled([
+            fetchKmaEndpoint('getPwnStatus', {
+              pageNo: 1,
+              numOfRows: 10,
+              dataType: 'JSON'
+            }),
+            fetchKmaEndpoint('getWthrWrnMsg', {
+              pageNo: 1,
+              numOfRows: 30,
+              dataType: 'JSON',
+              fromTmFc: weekAgoKst,
+              toTmFc: todayKst
+            }),
+            fetchKmaEndpoint('getPwnCd', {
+              pageNo: 1,
+              numOfRows: 300,
+              dataType: 'JSON',
+              fromTmFc: weekAgoKst,
+              toTmFc: todayKst
+            })
+          ]);
+
+          if (statusRes.status === 'rejected') {
+            throw statusRes.reason;
+          }
+
+          const statusItems = statusRes.value.items;
+          const latestStatus = statusItems[0] || null;
+
+          if (latestStatus) {
+            state.statusMeta = {
+              tmFc: latestStatus.tmFc || '',
+              tmEf: latestStatus.tmEf || latestStatus.tmFc || '',
+              tmSeq: latestStatus.tmSeq || ''
+            };
+            state.activeItems = parsePwnStatusT6(latestStatus.t6, state.statusMeta);
+            state.prelimText = (latestStatus.t7 || '').trim();
+            state.otherText = (latestStatus.other || '').trim();
+          } else {
+            state.statusMeta = null;
+            state.activeItems = [];
+            state.prelimText = '';
+            state.otherText = '';
+          }
+
+          if (msgRes.status === 'fulfilled') {
+            state.bulletins = msgRes.value.items.sort((a, b) =>
+              String(b.tmFc || '').localeCompare(String(a.tmFc || ''))
+            );
+          } else {
+            state.bulletins = [];
+          }
+
+          if (codeRes.status === 'fulfilled') {
+            state.codeRecords = codeRes.value.items.sort((a, b) =>
+              String(b.tmFc || '').localeCompare(String(a.tmFc || ''))
+            );
+          } else {
+            state.codeRecords = [];
+          }
+
+          state.lastUpdated = new Date();
+          els.lastUpdatedLabel.textContent = `마지막 업데이트: ${formatNowLabel(state.lastUpdated)}`;
+
+          populateTypeFilterOptions();
+          renderDashboard();
+
+          if (state.activeItems.length === 0) {
+            setStatus('clear', '연동 완료 · 특보 없음');
+            showBanner(
+              'clear',
+              '현재 전국에 발효 중인 기상특보가 없습니다.',
+              `기상청 특보현황(발표시각: ${formatKmaTime(state.statusMeta?.tmFc)}) 기준 전국 육상·해상 특보가 모두 해제 상태입니다.`
+            );
+          } else {
+            setStatus('live', '실시간 연동 완료');
+            hideBanner();
+          }
+        } catch (err) {
+          console.error(err);
+          setStatus('error', '호출 오류');
+          if (err.isCors) {
+            showBanner(
+              'error',
+              'CORS 정책으로 API 직접 호출이 차단되었습니다',
+              `브라우저 보안 정책(Same-Origin Policy)상 공공데이터포털 서버가 현재 출처의 직접 요청을 허용하지 않을 수 있습니다. <strong>API 설정 &rarr; CORS 중계 프록시 URL</strong>을 입력하거나 <button type="button" onclick="document.getElementById('openCorsGuideBtn').click()" style="background:none;border:none;color:#991b1b;font-weight:700;text-decoration:underline;cursor:pointer;">CORS 해결 안내</button>를 참고해 주세요.`
+            );
+          } else {
+            showBanner('error', 'API 호출 중 오류가 발생했습니다', escapeHtml(err.message));
+          }
+        } finally {
+          els.refreshBtn.disabled = false;
+        }
+      }
+
+      function getFilteredActiveItems() {
+        const { region, type, level, search } = state.filters;
+        const q = search.trim().toLowerCase();
+
+        return state.activeItems.filter(item => {
+          if (region !== 'ALL' && item.region !== region) return false;
+          if (type !== 'ALL' && item.type !== type) return false;
+          if (level !== 'ALL' && item.level !== level) return false;
+          if (q) {
+            const hay = `${item.region} ${item.areaName} ${item.type} ${item.level}`.toLowerCase();
+            if (!hay.includes(q)) return false;
+          }
+          return true;
+        });
+      }
+
+      function populateTypeFilterOptions() {
+        const current = state.filters.type;
+        const types = Array.from(new Set(state.activeItems.map(i => i.type))).sort();
+        els.typeFilter.innerHTML = '<option value="ALL">전체 유형</option>';
+        types.forEach(t => {
+          const opt = document.createElement('option');
+          opt.value = t;
+          opt.textContent = t;
+          els.typeFilter.appendChild(opt);
+        });
+        if (types.includes(current)) {
+          els.typeFilter.value = current;
+        } else {
+          state.filters.type = 'ALL';
+          els.typeFilter.value = 'ALL';
+        }
+      }
+
+      function renderDashboard() {
+        const filtered = getFilteredActiveItems();
+        renderKpis(filtered);
+        renderKoreaMap(filtered);
+        renderCharts(filtered);
+        renderActiveTable(filtered);
+        renderPrelimSection();
+        renderBulletinTable();
+        renderCodeTable();
+      }
+
+      function renderKpis(items) {
+        const total = items.length;
+        const advisory = items.filter(i => i.level === '주의보').length;
+        const warning = items.filter(i => i.level === '경보').length;
+        const distinctTypes = new Set(items.map(i => i.type)).size;
+        const distinctRegions = new Set(items.map(i => i.region)).size;
+        const prelimCount = countPrelimLines(state.prelimText);
+
+        els.kpiTotal.textContent = total.toLocaleString('ko-KR');
+        els.kpiTotalSub.textContent = `발효 중인 특보 유형 ${distinctTypes}종 · 실시간 집계`;
+
+        els.kpiAdvisory.textContent = advisory.toLocaleString('ko-KR');
+        els.kpiAdvisorySub.textContent = `전체 대비 ${total ? Math.round((advisory / total) * 100) : 0}% · 노랑·주황 주의 단계`;
+
+        els.kpiWarning.textContent = warning.toLocaleString('ko-KR');
+        els.kpiWarningSub.textContent = `전체 대비 ${total ? Math.round((warning / total) * 100) : 0}% · 적색 고위험 단계`;
+
+        els.kpiAreas.textContent = distinctRegions.toLocaleString('ko-KR');
+        els.kpiAreasSub.textContent = `예비특보 ${prelimCount}건 · 발표 ${formatKmaTime(state.statusMeta?.tmFc)}`;
+      }
+
+      function renderKoreaMap(items) {
+        const regionStats = {};
+        ALL_REGIONS.forEach(r => {
+          regionStats[r] = { total: 0, warning: 0, advisory: 0, details: [] };
+        });
+
+        const seaStats = {
+          '서해': { total: 0, warning: 0, advisory: 0, details: [] },
+          '동해': { total: 0, warning: 0, advisory: 0, details: [] },
+          '남해': { total: 0, warning: 0, advisory: 0, details: [] },
+          '제주해상': { total: 0, warning: 0, advisory: 0, details: [] }
+        };
+
+        items.forEach(item => {
+          const r = item.region;
+          if (regionStats[r]) {
+            regionStats[r].total++;
+            if (item.level === '경보') regionStats[r].warning++;
+            else regionStats[r].advisory++;
+            regionStats[r].details.push(item);
+          }
+          if (r === '해상' && item.subSea && seaStats[item.subSea]) {
+            seaStats[item.subSea].total++;
+            if (item.level === '경보') seaStats[item.subSea].warning++;
+            else seaStats[item.subSea].advisory++;
+            seaStats[item.subSea].details.push(item);
+          }
+        });
+
+        document.querySelectorAll('.region-shape').forEach(shape => {
+          const region = shape.dataset.region;
+          const st = regionStats[region] || { total: 0, warning: 0, advisory: 0 };
+          shape.classList.remove('level-warning', 'level-advisory', 'is-selected');
+
+          if (st.warning > 0) shape.classList.add('level-warning');
+          else if (st.advisory > 0) shape.classList.add('level-advisory');
+
+          if (state.filters.region === region) {
+            shape.classList.add('is-selected');
+          }
+
+          const lbl = document.getElementById(`lbl-${region}`);
+          if (lbl) {
+            lbl.classList.toggle('on-dark', st.total > 0);
+            lbl.textContent = st.total > 0 ? `${region}(${st.total})` : region;
+          }
+        });
+
+        document.querySelectorAll('.sea-zone').forEach(zone => {
+          const subSea = zone.dataset.subsea;
+          const st = seaStats[subSea] || { total: 0, warning: 0, advisory: 0 };
+          zone.classList.remove('level-warning', 'level-advisory', 'is-selected');
+
+          if (st.warning > 0) zone.classList.add('level-warning');
+          else if (st.advisory > 0) zone.classList.add('level-advisory');
+
+          if (state.filters.region === '해상') {
+            zone.classList.add('is-selected');
+          }
+
+          const badge = document.getElementById(`badge-sea-${subSea}`);
+          if (badge) {
+            badge.textContent = st.total > 0 ? `${st.total}건` : '';
+          }
+        });
+
+        window.__mapRegionStats = regionStats;
+        window.__mapSeaStats = seaStats;
+      }
+
+      function renderCharts(items) {
+        const typeCounts = {};
+        items.forEach(i => {
+          typeCounts[i.type] = (typeCounts[i.type] || 0) + 1;
+        });
+        const sortedTypes = Object.entries(typeCounts).sort((a, b) => b[1] - a[1]);
+
+        if (sortedTypes.length === 0) {
+          els.doughnutEmpty.style.display = 'block';
+          els.doughnutContent.style.display = 'none';
+          if (state.charts.doughnut) {
+            state.charts.doughnut.destroy();
+            state.charts.doughnut = null;
+          }
+        } else {
+          els.doughnutEmpty.style.display = 'none';
+          els.doughnutContent.style.display = 'grid';
+
+          const labels = sortedTypes.map(([t]) => t);
+          const data = sortedTypes.map(([, c]) => c);
+          const fallbackPalette = ['#1e3a8a', '#2563eb', '#0284c7', '#0d9488', '#f97316', '#dc2626', '#7c3aed', '#475569'];
+          const colors = labels.map((l, idx) => TYPE_COLORS[l] || fallbackPalette[idx % fallbackPalette.length]);
+
+          const totalCount = data.reduce((acc, v) => acc + v, 0);
+          els.typeBreakdownList.innerHTML = sortedTypes.map(([t, c], idx) => {
+            const pct = Math.round((c / totalCount) * 100);
+            return `
+              <div class="type-row">
+                <span class="type-row-left">
+                  <span class="type-swatch" style="background:${colors[idx]};"></span>
+                  <span>${escapeHtml(t)}</span>
+                </span>
+                <span class="type-row-right">${c}건 (${pct}%)</span>
+              </div>
+            `;
+          }).join('');
+
+          if (typeof Chart !== 'undefined') {
+            if (state.charts.doughnut) state.charts.doughnut.destroy();
+            const ctx = document.getElementById('typeDoughnutChart').getContext('2d');
+            state.charts.doughnut = new Chart(ctx, {
+              type: 'doughnut',
+              data: {
+                labels,
+                datasets: [{
+                  data,
+                  backgroundColor: colors,
+                  borderColor: '#ffffff',
+                  borderWidth: 3,
+                  borderRadius: 8,
+                  spacing: 3
+                }]
+              },
+              options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                cutout: '64%',
+                plugins: {
+                  legend: { display: false },
+                  tooltip: {
+                    callbacks: {
+                      label: (context) => ` ${context.label}: ${context.raw}건`
+                    }
+                  }
+                }
+              }
+            });
+          }
+        }
+
+        const regionMap = {};
+        items.forEach(i => {
+          if (!regionMap[i.region]) {
+            regionMap[i.region] = { advisory: 0, warning: 0 };
+          }
+          if (i.level === '경보') regionMap[i.region].warning++;
+          else regionMap[i.region].advisory++;
+        });
+
+        const sortedRegions = Object.entries(regionMap)
+          .sort((a, b) => (b[1].warning + b[1].advisory) - (a[1].warning + a[1].advisory));
+
+        if (sortedRegions.length === 0) {
+          els.barEmpty.style.display = 'block';
+          els.barContent.style.display = 'none';
+          if (state.charts.bar) {
+            state.charts.bar.destroy();
+            state.charts.bar = null;
+          }
+        } else {
+          els.barEmpty.style.display = 'none';
+          els.barContent.style.display = 'block';
+
+          const rLabels = sortedRegions.map(([r]) => r);
+          const advData = sortedRegions.map(([, v]) => v.advisory);
+          const wrnData = sortedRegions.map(([, v]) => v.warning);
+
+          if (typeof Chart !== 'undefined') {
+            if (state.charts.bar) state.charts.bar.destroy();
+            const ctx = document.getElementById('regionBarChart').getContext('2d');
+            state.charts.bar = new Chart(ctx, {
+              type: 'bar',
+              data: {
+                labels: rLabels,
+                datasets: [
+                  {
+                    label: '주의보',
+                    data: advData,
+                    backgroundColor: '#f97316',
+                    borderRadius: 7,
+                    borderSkipped: false
+                  },
+                  {
+                    label: '경보',
+                    data: wrnData,
+                    backgroundColor: '#dc2626',
+                    borderRadius: 7,
+                    borderSkipped: false
+                  }
+                ]
+              },
+              options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                  x: {
+                    stacked: true,
+                    grid: { display: false },
+                    ticks: { color: '#334155', font: { size: 11, weight: '700' } }
+                  },
+                  y: {
+                    stacked: true,
+                    beginAtZero: true,
+                    ticks: { stepSize: 1, precision: 0, color: '#64748b' },
+                    grid: { color: '#e2e8f0' }
+                  }
+                },
+                plugins: {
+                  legend: {
+                    position: 'top',
+                    align: 'end',
+                    labels: {
+                      usePointStyle: true,
+                      pointStyle: 'circle',
+                      boxWidth: 8,
+                      font: { size: 12, weight: '700' }
+                    }
+                  }
+                }
+              }
+            });
+          }
+        }
+      }
+
+      function renderActiveTable(items) {
+        els.tabActiveCount.textContent = items.length;
+        if (items.length === 0) {
+          els.activeTableBody.innerHTML = `
+            <tr>
+              <td colspan="6" class="empty-state">조건에 해당하는 발효 중인 기상특보가 없습니다.</td>
+            </tr>
+          `;
+          return;
+        }
+
+        const sorted = [...items].sort((a, b) => {
+          if (a.level !== b.level) return a.level === '경보' ? -1 : 1;
+          return a.region.localeCompare(b.region, 'ko');
+        });
+
+        els.activeTableBody.innerHTML = sorted.map(item => {
+          const badgeClass = item.level === '경보' ? 'badge-warning' : 'badge-advisory';
+          return `
+            <tr>
+              <td><span class="badge ${badgeClass}">${escapeHtml(item.level)}</span></td>
+              <td style="font-weight:700;">${escapeHtml(item.label)}</td>
+              <td><span class="badge badge-neutral">${escapeHtml(item.region)}</span></td>
+              <td>${escapeHtml(item.areaName)}</td>
+              <td class="mono">${escapeHtml(formatKmaTime(item.tmFc))}</td>
+              <td class="mono">${escapeHtml(formatKmaTime(item.tmEf))}</td>
+            </tr>
+          `;
+        }).join('');
+      }
+
+      function renderPrelimSection() {
+        const blocks = [];
+        if (state.prelimText && state.prelimText !== '없음') {
+          blocks.push(`[예비특보 발효현황]\n${state.prelimText}`);
+        }
+        if (state.otherText && state.otherText !== '없음') {
+          blocks.push(`[참고사항]\n${state.otherText}`);
+        }
+        if (blocks.length === 0) {
+          els.prelimSection.style.display = 'none';
+        } else {
+          els.prelimSection.style.display = 'block';
+          els.prelimContent.textContent = blocks.join('\n\n');
+        }
+      }
+
+      function renderBulletinTable() {
+        const search = state.filters.search.trim().toLowerCase();
+        const region = state.filters.region;
+        const type = state.filters.type;
+
+        const filtered = state.bulletins.filter(b => {
+          const title = String(b.t1 || b.title || '');
+          const area = String(b.t2 || b.area || '');
+          const t6 = String(b.t6 || '');
+          const textAll = `${title} ${area} ${t6}`.toLowerCase();
+          if (region !== 'ALL' && !textAll.includes(region.toLowerCase())) return false;
+          if (type !== 'ALL' && !textAll.includes(type.toLowerCase())) return false;
+          if (search && !textAll.includes(search)) return false;
+          return true;
+        });
+
+        els.tabBulletinCount.textContent = filtered.length;
+        if (filtered.length === 0) {
+          els.bulletinTableBody.innerHTML = `
+            <tr>
+              <td colspan="6" class="empty-state">조건에 해당하는 기상특보 통보문이 없습니다.</td>
+            </tr>
+          `;
+          return;
+        }
+
+        els.bulletinTableBody.innerHTML = filtered.map((b, idx) => {
+          const title = b.t1 || b.title || '(제목 없음)';
+          const stnName = STN_MAP[String(b.stnId)] || `지점 ${b.stnId || '-'}`;
+          const tmFc = formatKmaTime(b.tmFc);
+          const tmEf = formatKmaTime(b.t3 || b.tmEf || b.t5);
+          return `
+            <tr>
+              <td class="mono">제${escapeHtml(b.tmSeq || '-')}호</td>
+              <td><span class="badge badge-info">${escapeHtml(stnName)}</span></td>
+              <td style="font-weight:600;">${escapeHtml(title)}</td>
+              <td class="mono">${escapeHtml(tmFc)}</td>
+              <td class="mono">${escapeHtml(tmEf)}</td>
+              <td>
+                <button class="btn btn-light btn-sm" type="button" data-bulletin-idx="${idx}">
+                  상세보기
+                </button>
+              </td>
+            </tr>
+          `;
+        }).join('');
+
+        els.bulletinTableBody.querySelectorAll('[data-bulletin-idx]').forEach(btn => {
+          btn.addEventListener('click', () => {
+            const item = filtered[Number(btn.dataset.bulletinIdx)];
+            if (item) openBulletinModal(item);
+          });
+        });
+      }
+
+      function renderCodeTable() {
+        const { region, type, level, search } = state.filters;
+        const q = search.trim().toLowerCase();
+
+        const mapped = state.codeRecords.map(r => {
+          const varName = WARN_VAR_MAP[String(r.warnVar)] || String(r.warnVar || '-');
+          const stressName = WARN_STRESS_MAP[String(r.warnStress)] || String(r.warnStress || '-');
+          const cmdName = COMMAND_MAP[String(r.command)] || String(r.command || '-');
+          const reg = mapAreaCodeToRegion(r.areaCode, r.areaName);
+          return { raw: r, varName, stressName, cmdName, reg };
+        }).filter(item => {
+          if (region !== 'ALL' && item.reg !== region) return false;
+          if (type !== 'ALL' && item.varName !== type) return false;
+          if (level !== 'ALL' && item.stressName !== level) return false;
+          if (q) {
+            const hay = `${item.raw.areaCode} ${item.raw.areaName} ${item.varName} ${item.reg}`.toLowerCase();
+            if (!hay.includes(q)) return false;
+          }
+          return true;
+        });
+
+        els.tabCodeCount.textContent = mapped.length;
+        if (mapped.length === 0) {
+          els.codeTableBody.innerHTML = `
+            <tr>
+              <td colspan="7" class="empty-state">조건에 해당하는 특보 코드 이력이 없습니다.</td>
+            </tr>
+          `;
+          return;
+        }
+
+        els.codeTableBody.innerHTML = mapped.slice(0, 150).map(({ raw, varName, stressName, cmdName, reg }) => {
+          const stressBadge = stressName === '경보' ? 'badge-warning' : 'badge-advisory';
+          const cmdBadge = cmdName.includes('해제') ? 'badge-neutral' : 'badge-info';
+          return `
+            <tr>
+              <td class="mono">${escapeHtml(raw.areaCode || '-')}</td>
+              <td>${escapeHtml(raw.areaName || '-')} <span class="badge badge-neutral">${escapeHtml(reg)}</span></td>
+              <td style="font-weight:700;">${escapeHtml(varName)}</td>
+              <td><span class="badge ${stressBadge}">${escapeHtml(stressName)}</span></td>
+              <td><span class="badge ${cmdBadge}">${escapeHtml(cmdName)}</span></td>
+              <td class="mono">${escapeHtml(formatKmaTime(raw.startTime))}</td>
+              <td class="mono">${escapeHtml(formatKmaTime(raw.endTime))}</td>
+            </tr>
+          `;
+        }).join('');
+      }
+
+      function openBulletinModal(b) {
+        els.modalTitle.textContent = b.t1 || b.title || '기상특보 통보문 상세';
+        const blocks = [
+          { label: '발표지점 / 발표번호', value: `${STN_MAP[String(b.stnId)] || b.stnId || '-'} · 제${b.tmSeq || '-'}호` },
+          { label: '발표시각 / 발효시각', value: `발표: ${formatKmaTime(b.tmFc)} / 발효: ${formatKmaTime(b.t3 || b.tmEf)}` },
+          { label: '해당구역', value: b.t2 || b.area || '-' },
+          { label: '특보 내용', value: b.t4 || b.content || '-' },
+          { label: '특보발효현황 내용', value: b.t6 || '-' },
+          { label: '예비특보 발효현황', value: b.t7 || '없음' },
+          { label: '참고사항', value: b.other || '없음' }
+        ];
+        els.modalBody.innerHTML = blocks.map(blk => `
+          <div class="detail-block">
+            <div class="detail-label">${escapeHtml(blk.label)}</div>
+            <div class="detail-content">${escapeHtml(blk.value)}</div>
+          </div>
+        `).join('');
+        els.detailModalBackdrop.classList.add('is-open');
+      }
+
+      function openCorsGuideModal() {
+        els.modalTitle.textContent = 'CORS 오류 원인 및 API 중계 방식 안내';
+        els.modalBody.innerHTML = `
+          <div class="detail-block">
+            <div class="detail-label">1. 브라우저에서 CORS 오류가 발생하는 이유</div>
+            <div class="detail-content">정적 HTML 파일을 로컬(file://)이나 GitHub Pages(https://*.github.io)에서 실행하여 공공데이터포털 API(apis.data.go.kr)를 직접 호출할 때, API 서버 응답에 Access-Control-Allow-Origin 허용 헤더가 없으면 브라우저 보안 정책(Same-Origin Policy)에 의해 응답 데이터 읽기가 차단됩니다.</div>
+          </div>
+          <div class="detail-block">
+            <div class="detail-label">2. 해결 방법: 경량 API 중계(Proxy) 서버 활용</div>
+            <div class="detail-content">Cloudflare Workers, Vercel Serverless Function, 또는 Node.js 서버에서 기상청 API를 대신 호출한 뒤 CORS 허용 헤더(Access-Control-Allow-Origin: *)를 붙여 반환하면 브라우저와 GitHub Pages에서도 문제없이 동작합니다.</div>
+          </div>
+          <div class="detail-block">
+            <div class="detail-label">3. Cloudflare Workers 중계 예제 코드</div>
+            <div class="detail-content mono">export default {
+  async fetch(request) {
+    const target = new URL(request.url).searchParams.get("url");
+    if (!target || !target.startsWith("https://apis.data.go.kr/1360000/WthrWrnInfoService/")) {
+      return new Response("Invalid URL", { status: 400 });
+    }
+    const res = await fetch(target);
+    return new Response(await res.text(), {
+      status: res.status,
+      headers: {
+        "Content-Type": res.headers.get("Content-Type") || "application/json",
+        "Access-Control-Allow-Origin": "*"
+      }
+    });
+  }
+};</div>
+          </div>
+        `;
+        els.detailModalBackdrop.classList.add('is-open');
+      }
+
+      function loadSavedSettings() {
+        try {
+          const remember = localStorage.getItem(STORAGE_KEYS.remember) === 'true';
+          els.rememberKeyCheckbox.checked = remember;
+          const savedMode = localStorage.getItem(STORAGE_KEYS.mode);
+          const savedProxy = localStorage.getItem(STORAGE_KEYS.proxy);
+          if (savedMode) els.keyModeSelect.value = savedMode;
+          if (savedProxy) els.proxyUrlInput.value = savedProxy;
+          if (remember) {
+            const savedKey = localStorage.getItem(STORAGE_KEYS.key) || '';
+            els.serviceKeyInput.value = savedKey;
+            if (savedKey) {
+              els.configPanel.classList.add('is-collapsed');
+              loadDashboardData();
+            }
+          }
+        } catch (e) {}
+      }
+
+      function saveSettingsIfNeeded() {
+        try {
+          const remember = els.rememberKeyCheckbox.checked;
+          localStorage.setItem(STORAGE_KEYS.remember, String(remember));
+          localStorage.setItem(STORAGE_KEYS.mode, els.keyModeSelect.value);
+          localStorage.setItem(STORAGE_KEYS.proxy, els.proxyUrlInput.value.trim());
+          if (remember) {
+            localStorage.setItem(STORAGE_KEYS.key, els.serviceKeyInput.value.trim());
+          } else {
+            localStorage.removeItem(STORAGE_KEYS.key);
+          }
+        } catch (e) {}
+      }
+
+      function bindEvents() {
+        els.toggleConfigBtn.addEventListener('click', () => {
+          els.configPanel.classList.toggle('is-collapsed');
+        });
+        els.hideConfigBtn.addEventListener('click', () => {
+          els.configPanel.classList.add('is-collapsed');
+        });
+
+        els.toggleKeyVisibility.addEventListener('click', () => {
+          const isPwd = els.serviceKeyInput.type === 'password';
+          els.serviceKeyInput.type = isPwd ? 'text' : 'password';
+          els.toggleKeyVisibility.textContent = isPwd ? '숨김' : '표시';
+        });
+
+        els.clearKeyBtn.addEventListener('click', () => {
+          els.serviceKeyInput.value = '';
+          els.rememberKeyCheckbox.checked = false;
+          try {
+            localStorage.removeItem(STORAGE_KEYS.key);
+            localStorage.removeItem(STORAGE_KEYS.remember);
+          } catch (e) {}
+        });
+
+        els.apiConfigForm.addEventListener('submit', (e) => {
+          e.preventDefault();
+          loadDashboardData();
+        });
+
+        els.refreshBtn.addEventListener('click', loadDashboardData);
+        els.openCorsGuideBtn.addEventListener('click', openCorsGuideModal);
+
+        els.regionFilter.addEventListener('change', (e) => {
+          state.filters.region = e.target.value;
+          renderDashboard();
+        });
+        els.typeFilter.addEventListener('change', (e) => {
+          state.filters.type = e.target.value;
+          renderDashboard();
+        });
+        els.levelFilter.addEventListener('change', (e) => {
+          state.filters.level = e.target.value;
+          renderDashboard();
+        });
+        els.searchInput.addEventListener('input', (e) => {
+          state.filters.search = e.target.value;
+          renderDashboard();
+        });
+        els.resetFiltersBtn.addEventListener('click', () => {
+          state.filters = { region: 'ALL', type: 'ALL', level: 'ALL', search: '' };
+          els.regionFilter.value = 'ALL';
+          els.typeFilter.value = 'ALL';
+          els.levelFilter.value = 'ALL';
+          els.searchInput.value = '';
+          renderDashboard();
+        });
+
+        document.querySelectorAll('.tab-btn').forEach(btn => {
+          btn.addEventListener('click', () => {
+            document.querySelectorAll('.tab-btn').forEach(b => {
+              b.classList.remove('is-active');
+              b.setAttribute('aria-selected', 'false');
+            });
+            document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('is-active'));
+            btn.classList.add('is-active');
+            btn.setAttribute('aria-selected', 'true');
+            document.getElementById(btn.dataset.tab).classList.add('is-active');
+          });
+        });
+
+        document.querySelectorAll('.region-shape, .sea-zone').forEach(el => {
+          el.addEventListener('click', () => {
+            const region = el.dataset.region;
+            state.filters.region = state.filters.region === region ? 'ALL' : region;
+            els.regionFilter.value = state.filters.region;
+            renderDashboard();
+          });
+
+          el.addEventListener('mousemove', (e) => {
+            const region = el.dataset.region;
+            const subSea = el.dataset.subsea;
+            const st = subSea
+              ? (window.__mapSeaStats?.[subSea] || { total: 0, warning: 0, advisory: 0, details: [] })
+              : (window.__mapRegionStats?.[region] || { total: 0, warning: 0, advisory: 0, details: [] });
+
+            const title = subSea ? `${subSea} 해상` : region;
+            const typesText = st.total > 0
+              ? Array.from(new Set(st.details.map(d => d.label))).join(', ')
+              : '발효 중인 특보 없음';
+
+            els.mapTooltip.innerHTML = `
+              <div class="map-tooltip-title">${escapeHtml(title)} (${st.total}건)</div>
+              <div>경보 ${st.warning}건 · 주의보 ${st.advisory}건</div>
+              <div style="margin-top:4px;color:#cbd5e1;">${escapeHtml(typesText)}</div>
+            `;
+            els.mapTooltip.style.display = 'block';
+            els.mapTooltip.style.left = `${e.clientX + 14}px`;
+            els.mapTooltip.style.top = `${e.clientY + 14}px`;
+          });
+
+          el.addEventListener('mouseleave', () => {
+            els.mapTooltip.style.display = 'none';
+          });
+        });
+
+        els.modalCloseBtn.addEventListener('click', () => {
+          els.detailModalBackdrop.classList.remove('is-open');
+        });
+        els.detailModalBackdrop.addEventListener('click', (e) => {
+          if (e.target === els.detailModalBackdrop) {
+            els.detailModalBackdrop.classList.remove('is-open');
+          }
+        });
+      }
+
+      bindEvents();
+      loadSavedSettings();
+    })();
+  </script>
+</body>
+</html>
